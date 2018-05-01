@@ -50,6 +50,10 @@ static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, 
 	cmd_printf("Manufaturer ID : %s\r\n", conf->dev_info.device_mf_id);
 	cmd_printf("Device Type    : %s\r\n", conf->dev_info.device_type);
 	cmd_printf("Model ID       : %s\r\n", conf->dev_info.device_model_id);
+	cmd_printf("Serial Number  : %s\r\n", conf->dev_info.device_sn);
+	cmd_printf("Server IP      : %s\r\n", conf->dev_info.server_ip);
+	cmd_printf("Server Port    : %d\r\n", conf->dev_info.server_port);
+	cmd_printf("Configured     : %d\r\n", sys_context->flashContentInRam.micoSystemConfig.configured);
 	mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
 	return;
     } 
@@ -62,6 +66,19 @@ static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, 
 	FILL_USER_CONF("mf_id", dev_info.device_mf_id);
 	FILL_USER_CONF("type", dev_info.device_type);
 	FILL_USER_CONF("model_id", dev_info.device_model_id);
+	FILL_USER_CONF("sn", dev_info.device_sn);
+	FILL_USER_CONF("server", dev_info.server_ip);
+	if (!processed && !strcasecmp(argv[2], "port")) {
+	    conf->dev_info.server_port = (ushort)atoi(argv[3]);
+	    processed = MICO_TRUE;
+	}
+	if (!processed && !strcasecmp(argv[2], "config")) {
+	    if (argv[3][0] == '1')
+		sys_context->flashContentInRam.micoSystemConfig.configured = allConfigured;
+	    else
+		sys_context->flashContentInRam.micoSystemConfig.configured = unConfigured;
+	    processed = MICO_TRUE;
+	}
 	mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
 	status = mico_system_context_update(mico_system_context_get());
 	check_string(status == kNoErr, "Fail to update conf to Flash memory");
@@ -70,7 +87,7 @@ static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, 
 
 WRONGCMD:
     cmd_printf("Usage: devinfo\r\n"
-	       "       devinfo mf_id|type|model_id [value]\r\n");
+	       "       devinfo mf_id|type|model_id|sn|server|config [value]\r\n");
 }
 
 int smarthome_conf_cli_register( void )

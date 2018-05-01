@@ -17,6 +17,9 @@ typedef struct
     char device_mf_id[32];	/* Manufacturer ID (LG) */
     char device_type[32];	/* Device Type (aircondition, ...) */
     char device_model_id[32];	/* Device Model ID (LG-N3333) */
+    char device_sn[32];		/* Device Serial Number */
+    char server_ip[32];		/* service ip address */
+    ushort server_port;		/* server port */
 } smarthome_device_info_t;
     
 typedef struct
@@ -25,3 +28,6 @@ typedef struct
 } smarthome_device_user_conf_t;
 
 #define smarthome_get_size_user_data()	(sizeof(smarthome_device_user_conf_t))
+
+smarthome_device_user_conf_t* smarthome_conf_get( void );
+int smarthome_conf_cli_register( void );
