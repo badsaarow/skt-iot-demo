@@ -51,8 +51,8 @@ static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, 
 	cmd_printf("Device Type    : %s\r\n", conf->dev_info.device_type);
 	cmd_printf("Model ID       : %s\r\n", conf->dev_info.device_model_id);
 	cmd_printf("Serial Number  : %s\r\n", conf->dev_info.device_sn);
-	cmd_printf("Server IP      : %s\r\n", conf->dev_info.server_ip);
-	cmd_printf("Server Port    : %d\r\n", conf->dev_info.server_port);
+	cmd_printf("Server IP      : %s\r\n", conf->server.ip);
+	cmd_printf("Server Port    : %d\r\n", conf->server.port);
 	cmd_printf("Configured     : %d\r\n", sys_context->flashContentInRam.micoSystemConfig.configured);
 	mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
 	return;
@@ -67,9 +67,9 @@ static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, 
 	FILL_USER_CONF("type", dev_info.device_type);
 	FILL_USER_CONF("model_id", dev_info.device_model_id);
 	FILL_USER_CONF("sn", dev_info.device_sn);
-	FILL_USER_CONF("server", dev_info.server_ip);
+	FILL_USER_CONF("server", server.ip);
 	if (!processed && !strcasecmp(argv[2], "port")) {
-	    conf->dev_info.server_port = (ushort)atoi(argv[3]);
+	    conf->server.port = (ushort)atoi(argv[3]);
 	    processed = MICO_TRUE;
 	}
 	if (!processed && !strcasecmp(argv[2], "config")) {
