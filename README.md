@@ -10,7 +10,7 @@ It is developed on [MiCO](http://developer.mxchip.com) Internet Connectivity OS.
 
 First you need [MiCO](http://developer.mxchip.com) development tools. 
 
-- Downlod MiCoder Tools (openocd, arm-none-eabi cross compiler, JLink driver, compile utility)
+- Download MiCoder Tools (openocd, arm-none-eabi cross compiler, JLink driver, compile utility)
   - [MiCoder Tools for Windows](http://7xnbsm.com1.z0.glb.clouddn.com/MiCoder_v1.1.Win32.zip)
   - [MiCoder Tools for macOS](http://7xnbsm.com1.z0.glb.clouddn.com/MiCoder_v1.1.macOS.tar.gz)
   - [MiCoder Tools for Linux](http://7xnbsm.com1.z0.glb.clouddn.com/MiCoder_v1.1.Linux.tar.gz)
