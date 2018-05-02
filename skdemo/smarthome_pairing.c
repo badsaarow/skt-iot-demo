@@ -55,11 +55,17 @@ static void localPairinglistener_thread( mico_thread_arg_t arg );
 static void localPairing_thread(uint32_t inFd);
 
 bool is_pairing_server_established = false;
+static config_server_uap_configured_cb _uap_configured_cb = NULL;
 
 /* Defined in uAP config mode */
 extern system_context_t* sys_context;
 
 static mico_semaphore_t close_listener_sem = NULL, close_client_sem[ MAX_TCP_CLIENT_PER_SERVER ] = { NULL };
+
+void pairing_server_set_uap_cb( config_server_uap_configured_cb callback )
+{
+    _uap_configured_cb = callback;
+}
 
 static bool is_valid_pairing_msg(const char *buf, size_t len)
 {
@@ -86,22 +92,34 @@ static bool is_receive_completed(const char *buf, size_t len)
     return false;
 }
 
+typedef enum {
+    E_TYPE,
+    E_CODE,
+    E_KEY,
+    E_SSID,
+    E_PWD,
+    E_IP,
+    E_PORT,
+    E_SID
+} pairing_json_field_t;
+
 static OSStatus process_request_message( int fd, char* buf, size_t len )
 {
     size_t i;
     OSStatus err = kUnknownErr;
     pairing_msg_t *msg = (pairing_msg_t*)buf;
     json_object* report = NULL, *config = NULL;
+    const char *  json_str;
 
     json_field_t fields[] = {
-	{ "type", NULL, 4 },
-	{ "code", NULL, 7 },
-	{ "key", NULL, MAX_TRANSACTION_KEY },
-	{ "ssid", NULL, maxSsidLen },
-	{ "pwd", NULL, maxKeyLen },
-	{ "ip", NULL, maxIpLen },
-	{ "port", NULL, 6 },
-	{ "servicedid", NULL, maxNameLen },
+	[E_TYPE] = { "type", NULL, 4 },
+	[E_CODE] = { "code", NULL, 7 },
+	[E_KEY]  = { "key", NULL, MAX_TRANSACTION_KEY },
+	[E_SSID] = { "ssid", NULL, maxSsidLen },
+	[E_PWD]  = { "pwd", NULL, maxKeyLen },
+	[E_IP]   = { "ip", NULL, maxIpLen },
+	[E_PORT] = { "port", NULL, 6 },
+	[E_SID]  = { "servicedid", NULL, maxNameLen },
     };
 
     config = json_tokener_parse( msg->data );
@@ -122,24 +140,30 @@ static OSStatus process_request_message( int fd, char* buf, size_t len )
 	}		
     }
 
-    require_string( fields[0].value && fields[1].value && fields[2].value, exit, "No manadatory fields: type, code, key");
-    require_string( strcmp(fields[0].value, "REQ" ) == 0, exit, "Invalid type field");
+    require_string( fields[E_TYPE].value && fields[E_CODE].value && fields[E_KEY].value,
+		    exit, "No manadatory fields: type, code, key");
+    require_string( strcmp(fields[E_TYPE].value, "REQ" ) == 0, exit, "Invalid type field");
 
     report = json_object_new_object();
     json_object_object_add(report, "type", json_object_new_string("RES"));
-    json_object_object_add(report, "code", json_object_new_string(fields[1].value));
-    json_object_object_add(report, "key", json_object_new_string(fields[2].value));
+    json_object_object_add(report, "code", json_object_new_string(fields[E_CODE].value));
+    json_object_object_add(report, "key", json_object_new_string(fields[E_KEY].value));
     
-    if ( strcmp( fields[1].value, "DP0000" ) == 0 ) {
+    if ( strcmp( fields[E_TYPE].value, "DP0000" ) == 0 ) {
+	/* login */
 	err = kNoErr;
-    } else if ( strcmp( fields[1].value, "DP1000" ) == 0 ) {
-	require_string( fields[3].value && fields[4].value, exit, "No manadatory fields: ssid, pwd");
+    } else if ( strcmp( fields[E_TYPE].value, "DP1000" ) == 0 ) {
+	/* Wi-Fi SSID & Password Send */
+	require_string( fields[E_SSID].value && fields[E_PWD].value, exit, "No manadatory fields: ssid, pwd");
 	mico_rtos_lock_mutex(&sys_context->flashContentInRam_mutex);
-	strncpy(sys_context->flashContentInRam.micoSystemConfig.ssid, fields[3].value, maxSsidLen);
-	strncpy(sys_context->flashContentInRam.micoSystemConfig.key, fields[4].value, maxKeyLen);
+	strncpy(sys_context->flashContentInRam.micoSystemConfig.ssid, fields[E_SSID].value, maxSsidLen);
+	strncpy(sys_context->flashContentInRam.micoSystemConfig.key, fields[E_PWD].value, maxKeyLen);
 	mico_rtos_unlock_mutex(&sys_context->flashContentInRam_mutex);
+	err = mico_system_context_update(mico_system_context_get());
+	check_string(err == kNoErr, "Fail to update conf to Flash memory");
 	err = kNoErr;
-    } else if ( strcmp( fields[1].value, "DP1100" ) == 0 ) {
+    } else if ( strcmp( fields[E_TYPE].value, "DP1100" ) == 0 ) {
+	/* Device Info */
 	smarthome_device_user_conf_t* user = smarthome_conf_get();
 	mico_rtos_lock_mutex(&sys_context->flashContentInRam_mutex);
 	json_object_object_add(report, "devcie_mf_id", json_object_new_string(user->dev_info.device_mf_id));
@@ -148,20 +172,39 @@ static OSStatus process_request_message( int fd, char* buf, size_t len )
 	json_object_object_add(report, "devcie_sn", json_object_new_string(user->dev_info.device_sn));
 	mico_rtos_unlock_mutex(&sys_context->flashContentInRam_mutex);
 	err = kNoErr;
-    } else if ( strcmp( fields[1].value, "DP1200" ) == 0 ) {
-	/* FIXME: need to other field */
+    } else if ( strcmp( fields[E_TYPE].value, "DP1200" ) == 0 ) {
+	/* Connect to Server */
+	smarthome_device_user_conf_t* user = smarthome_conf_get();
 	mico_rtos_lock_mutex(&sys_context->flashContentInRam_mutex);
+	strncpy(user->server.ip, fields[E_IP].value, maxSsidLen);
+	user->server.port = atoi(fields[E_PORT].value);
+	strncpy(sys_context->flashContentInRam.micoSystemConfig.name, fields[E_SID].value, maxNameLen);
 	sys_context->flashContentInRam.micoSystemConfig.configured = allConfigured;
 	mico_rtos_unlock_mutex(&sys_context->flashContentInRam_mutex);
+	err = mico_system_context_update(mico_system_context_get());
+	check_string(err == kNoErr, "Fail to update conf to Flash memory");
 	err = kNoErr;
+
+	if ( _uap_configured_cb ) {
+	    mico_rtos_delay_milliseconds( 1000 );
+	    _uap_configured_cb( 0x1 ); /* fixed easylinkIdentifier */
+	}
     } else {
 	system_log( "Unknown message code" );
     }
     json_object_object_add(report, "result", json_object_new_string("200"));
 
+    json_str = json_object_to_json_string(report);
+    require_action( json_str, exit, err = kNoMemoryErr );
+    system_log("Send config object=%s", json_str);
+    err = SocketSend( fd, (uint8_t*)json_str, strlen(json_str) );
+    require_noerr( err, exit );
+
   exit:
     if(config)
         json_object_put(config);
+    if(report)
+	json_object_put(report);
 
     for( i = 0; i < N_ELEMENT(fields); i++) {
 	if (fields[i].value)
