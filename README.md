@@ -5,6 +5,20 @@ This project is a demonstration firmware for [MXCHIP](http://en.mxchip.com) IoT 
 It is developed on [MiCO](http://developer.mxchip.com) Internet Connectivity OS.
 
 
+## Developement Status
+
+- add user configuration in flash
+- implement initial pairing procedure with smartphone
+
+
+## ToDo 
+
+- implement GMPP protocol
+- Sample code control port and notify events
+
+MiCO provide EasyLink that is proprietary ZeroConf of MXCHIP. With EasyLink, you only need to input passpharase of AP manually during device paring procedure. It means transfer current SSID of a smartphone to a device automatically. 
+It should be adopted in SK smartphone app before commercial lanuch. ([Youtube Demo](https://www.youtube.com/watch?v=ut0SI5-yZaU))
+
 
 ## How to Build
 
