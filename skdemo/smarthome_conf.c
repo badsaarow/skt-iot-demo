@@ -29,12 +29,12 @@ exit:
 
 #define FILL_USER_CONF(cmd, field)					\
 {									\
-    if (!processed && !strcasecmp(argv[2], cmd)) {			\
-	require_action_string(strlen(argv[3]) < sizeof(conf->field), WRONGCMD, \
+    if (!processed && !strcasecmp(argv[1], cmd)) {			\
+	require_action_string(strlen(argv[2]) < sizeof(conf->field), WRONGCMD, \
 		      mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex ), \
 			      "Too long value.");			\
 	memset(conf->field, 0, sizeof(conf->field));			\
-	strcpy(conf->field, argv[3]);					\
+	strcpy(conf->field, argv[2]);					\
 	processed = MICO_TRUE;						\
     }									\
 }
@@ -68,12 +68,12 @@ static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, 
 	FILL_USER_CONF("model_id", dev_info.device_model_id);
 	FILL_USER_CONF("sn", dev_info.device_sn);
 	FILL_USER_CONF("server", server.ip);
-	if (!processed && !strcasecmp(argv[2], "port")) {
-	    conf->server.port = (ushort)atoi(argv[3]);
+	if (!processed && !strcasecmp(argv[1], "port")) {
+	    conf->server.port = (ushort)atoi(argv[2]);
 	    processed = MICO_TRUE;
 	}
-	if (!processed && !strcasecmp(argv[2], "config")) {
-	    if (argv[3][0] == '1')
+	if (!processed && !strcasecmp(argv[1], "config")) {
+	    if (argv[2][0] == '1')
 		sys_context->flashContentInRam.micoSystemConfig.configured = allConfigured;
 	    else
 		sys_context->flashContentInRam.micoSystemConfig.configured = unConfigured;
