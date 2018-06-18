@@ -14,7 +14,8 @@ int application_start( void )
 {
     /* Start MiCO system functions according to mico_config.h*/
     mico_system_init( mico_system_context_init( smarthome_get_size_user_data() ) );
-  
+    smarthome_conf_cli_register();
+
     /* Output on debug serial port */
     smarthome_log( "Start SmartHome Main!" );
 
@@ -23,6 +24,5 @@ int application_start( void )
     {
 	MicoGpioOutputTrigger( MICO_SYS_LED );
 	mico_thread_sleep(1);
-	smarthome_log( "Hello world TEST!" );
     }
 }
