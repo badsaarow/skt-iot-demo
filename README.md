@@ -55,5 +55,5 @@ $ mico config --global MICODER ~/MiCO_SDK/MiCO/MiCoder
 - Compile, download and run
 
 ```shell
-$ mico make skdemo@MK3080B@MOC download run
+$ mico make skdemo@MK3080B@MOC download run JTAG=jlink_swd
 ```
