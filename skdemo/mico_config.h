@@ -19,7 +19,7 @@
 
 /************************************************************************
  * Enable wlan connection, start easylink configuration if no wlan settings are existed */
-//#define MICO_WLAN_CONNECTION_ENABLE
+#define MICO_WLAN_CONNECTION_ENABLE
 
 #define MICO_WLAN_CONFIG_MODE CONFIG_MODE_SOFTAP
 
@@ -27,6 +27,8 @@
 
 #define EasyLink_ConnectWlan_Timeout    20000 /**< Connect to wlan after configured by easylink.
                                                    Restart easylink after timeout: 20 seconds. */
+
+#define HL_USE_SKT_PAIRING
 
 /************************************************************************
  * Device enter MFG mode if MICO settings are erased. */
