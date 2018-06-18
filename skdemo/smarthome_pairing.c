@@ -74,7 +74,7 @@ static bool is_valid_pairing_msg(const char *buf, size_t len)
 	return true;
 
     require_string(strncmp(d->version, "v100", sizeof(d->version)) == 0, bad, "Bad Pairing Version");
-    require_string(d->len > MAX_PAIRING_BUFFER_SIZE, bad, "Too Big Pairing Packet");
+    require_string(ntohl(d->len) < MAX_PAIRING_BUFFER_SIZE, bad, "Too Big Pairing Packet");
     return true;
   bad:
     return false;
@@ -87,7 +87,7 @@ static bool is_receive_completed(const char *buf, size_t len)
     if( len < N_OFFSET(pairing_msg_t, data) )
 	return false;
 
-    if( len >= d->len )
+    if( len >= ntohl(d->len) )
 	return true;
     return false;
 }
@@ -376,7 +376,7 @@ static void localPairing_thread(uint32_t inFd)
 	    require_action(n > 0, exit, err = kConnectionErr);
 
 	    buf_pos += (size_t)n;
-	    require_string(buf_pos < sizeof(MAX_PAIRING_BUFFER_SIZE), exit, "Too big pairing message");
+	    require_string(buf_pos < MAX_PAIRING_BUFFER_SIZE, exit, "Too big pairing message");
 	    require_string(is_valid_pairing_msg( buf, buf_pos ), exit, "Bad pairing message header");
 	    if (is_receive_completed( buf, buf_pos )) {
 		    buf[buf_pos] = '\0';
