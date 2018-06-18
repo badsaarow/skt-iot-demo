@@ -18,6 +18,8 @@
 #include "smarthome_pairing.h"
 #include "smarthome_conf.h"
 
+#define PAIRING_VERSION			"v100"
+#define PAIRING_VERSION_LEN		4
 #define SMARTHOME_PAIRING_SERVER_PORT	5000
 #define MAX_PAIRING_BUFFER_SIZE		256
 #define MAX_TRANSACTION_KEY		50
@@ -73,7 +75,7 @@ static bool is_valid_pairing_msg(const char *buf, size_t len)
     if( len < N_OFFSET(pairing_msg_t, data) )
 	return true;
 
-    require_string(strncmp(d->version, "v100", sizeof(d->version)) == 0, bad, "Bad Pairing Version");
+    require_string(strncmp(d->version, PAIRING_VERSION, sizeof(d->version)) == 0, bad, "Bad Pairing Version");
     require_string(ntohl(d->len) < MAX_PAIRING_BUFFER_SIZE, bad, "Too Big Pairing Packet");
     return true;
   bad:
@@ -119,7 +121,7 @@ static OSStatus process_request_message( int fd, char* buf, size_t len )
 	[E_PWD]  = { "pwd", NULL, maxKeyLen },
 	[E_IP]   = { "ip", NULL, maxIpLen },
 	[E_PORT] = { "port", NULL, 6 },
-	[E_SID]  = { "servicedid", NULL, maxNameLen },
+	[E_SID]  = { "serviceid", NULL, maxNameLen },
     };
 
     config = json_tokener_parse( msg->data );
@@ -134,10 +136,11 @@ static OSStatus process_request_message( int fd, char* buf, size_t len )
 		require( fields[i].value == NULL, exit );
 		fields[i].value = calloc(1, fields[i].max);
 		strncpy(fields[i].value, str, fields[i].max);
-	    } else {
-		system_log("Unknown field: %s\n", key);
+		break;
 	    }
-	}		
+	}
+	if (i == N_ELEMENT(fields))
+		system_log("Unknown field: %s\n", key);
     }
 
     require_string( fields[E_TYPE].value && fields[E_CODE].value && fields[E_KEY].value,
@@ -149,46 +152,45 @@ static OSStatus process_request_message( int fd, char* buf, size_t len )
     json_object_object_add(report, "code", json_object_new_string(fields[E_CODE].value));
     json_object_object_add(report, "key", json_object_new_string(fields[E_KEY].value));
     
-    if ( strcmp( fields[E_TYPE].value, "DP0000" ) == 0 ) {
+    if ( strcmp( fields[E_CODE].value, "DP0000" ) == 0 ) {
 	/* login */
 	err = kNoErr;
-    } else if ( strcmp( fields[E_TYPE].value, "DP1000" ) == 0 ) {
+    } else if ( strcmp( fields[E_CODE].value, "DP1000" ) == 0 ) {
 	/* Wi-Fi SSID & Password Send */
 	require_string( fields[E_SSID].value && fields[E_PWD].value, exit, "No manadatory fields: ssid, pwd");
 	mico_rtos_lock_mutex(&sys_context->flashContentInRam_mutex);
 	strncpy(sys_context->flashContentInRam.micoSystemConfig.ssid, fields[E_SSID].value, maxSsidLen);
+	sys_context->flashContentInRam.micoSystemConfig.channel = 0;
+	memset(sys_context->flashContentInRam.micoSystemConfig.bssid, 0x0, 6);
+	sys_context->flashContentInRam.micoSystemConfig.security = SECURITY_TYPE_AUTO;
 	strncpy(sys_context->flashContentInRam.micoSystemConfig.key, fields[E_PWD].value, maxKeyLen);
+	sys_context->flashContentInRam.micoSystemConfig.keyLength = strlen(fields[E_PWD].value);
+        sys_context->flashContentInRam.micoSystemConfig.configured = allConfigured;
 	mico_rtos_unlock_mutex(&sys_context->flashContentInRam_mutex);
 	err = mico_system_context_update(mico_system_context_get());
 	check_string(err == kNoErr, "Fail to update conf to Flash memory");
 	err = kNoErr;
-    } else if ( strcmp( fields[E_TYPE].value, "DP1100" ) == 0 ) {
+    } else if ( strcmp( fields[E_CODE].value, "DP1100" ) == 0 ) {
 	/* Device Info */
 	smarthome_device_user_conf_t* user = smarthome_conf_get();
 	mico_rtos_lock_mutex(&sys_context->flashContentInRam_mutex);
-	json_object_object_add(report, "devcie_mf_id", json_object_new_string(user->dev_info.device_mf_id));
-	json_object_object_add(report, "devcie_type", json_object_new_string(user->dev_info.device_type));
-	json_object_object_add(report, "devcie_model_id", json_object_new_string(user->dev_info.device_model_id));
-	json_object_object_add(report, "devcie_sn", json_object_new_string(user->dev_info.device_sn));
+	json_object_object_add(report, "device_mf_id", json_object_new_string(user->dev_info.device_mf_id));
+	json_object_object_add(report, "device_type", json_object_new_string(user->dev_info.device_type));
+	json_object_object_add(report, "device_model_id", json_object_new_string(user->dev_info.device_model_id));
+	json_object_object_add(report, "device_sn", json_object_new_string(user->dev_info.device_sn));
 	mico_rtos_unlock_mutex(&sys_context->flashContentInRam_mutex);
 	err = kNoErr;
-    } else if ( strcmp( fields[E_TYPE].value, "DP1200" ) == 0 ) {
+    } else if ( strcmp( fields[E_CODE].value, "DP1200" ) == 0 ) {
 	/* Connect to Server */
 	smarthome_device_user_conf_t* user = smarthome_conf_get();
 	mico_rtos_lock_mutex(&sys_context->flashContentInRam_mutex);
 	strncpy(user->server.ip, fields[E_IP].value, maxSsidLen);
 	user->server.port = atoi(fields[E_PORT].value);
 	strncpy(sys_context->flashContentInRam.micoSystemConfig.name, fields[E_SID].value, maxNameLen);
-	sys_context->flashContentInRam.micoSystemConfig.configured = allConfigured;
 	mico_rtos_unlock_mutex(&sys_context->flashContentInRam_mutex);
 	err = mico_system_context_update(mico_system_context_get());
 	check_string(err == kNoErr, "Fail to update conf to Flash memory");
 	err = kNoErr;
-
-	if ( _uap_configured_cb ) {
-	    mico_rtos_delay_milliseconds( 1000 );
-	    _uap_configured_cb( 0x1 ); /* fixed easylinkIdentifier */
-	}
     } else {
 	system_log( "Unknown message code" );
     }
@@ -197,8 +199,18 @@ static OSStatus process_request_message( int fd, char* buf, size_t len )
     json_str = json_object_to_json_string(report);
     require_action( json_str, exit, err = kNoMemoryErr );
     system_log("Send config object=%s", json_str);
-    err = SocketSend( fd, (uint8_t*)json_str, strlen(json_str) );
-    require_noerr( err, exit );
+
+    {
+	i = strlen(json_str);
+	msg = calloc(1, sizeof(pairing_msg_t) + i + 4);
+	strcpy(msg->version, PAIRING_VERSION);
+	i += N_OFFSET(pairing_msg_t, data);
+	msg->len = htonl(i);
+	strcpy(msg->data, json_str);
+	err = SocketSend( fd, (uint8_t*)msg, i);
+	require_noerr( err, exit );
+	free(msg);
+    }
 
   exit:
     if(config)
@@ -335,6 +347,7 @@ static void localPairing_thread(uint32_t inFd)
     fd_set readfds;
     struct timeval t;
     int close_client_fd = -1;
+    bool completed = false;
 
     char buf[MAX_PAIRING_BUFFER_SIZE];
     size_t buf_pos = 0;
@@ -373,7 +386,10 @@ static void localPairing_thread(uint32_t inFd)
 	if( FD_ISSET(clientFd, &readfds) ) {
 	    ssize_t n;
 	    n = read( clientFd, &buf[buf_pos], sizeof(buf) - buf_pos );
-	    require_action(n > 0, exit, err = kConnectionErr);
+	    if (n < 0) {
+		err = kConnectionErr;
+		break;
+	    }
 
 	    buf_pos += (size_t)n;
 	    require_string(buf_pos < MAX_PAIRING_BUFFER_SIZE, exit, "Too big pairing message");
@@ -381,6 +397,12 @@ static void localPairing_thread(uint32_t inFd)
 	    if (is_receive_completed( buf, buf_pos )) {
 		    buf[buf_pos] = '\0';
 		    process_request_message( clientFd, buf, buf_pos );
+		    mico_rtos_lock_mutex( &sys_context->flashContentInRam_mutex );
+		    if (sys_context->flashContentInRam.micoSystemConfig.configured)
+			completed = true;
+		    mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
+		    if (completed)
+			break;
 	    }
 	}
     }
@@ -395,6 +417,10 @@ static void localPairing_thread(uint32_t inFd)
 	mico_rtos_deinit_semaphore( &close_client_sem[close_sem_index] );
 	close_client_sem[close_sem_index] = NULL;
     };
+
+    if ( completed ) {
+        mico_system_power_perform( &sys_context->flashContentInRam, eState_Software_Reset );
+    }
 
     mico_rtos_delete_thread( NULL );
     return;
