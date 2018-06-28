@@ -6,6 +6,14 @@
  */
 #pragma once
 
+#define LEN_MANUFACTURE_ID	16
+#define LEN_DEVICE_TYPE		32
+#define LEN_MODEL_ID		32
+#define LEN_SERIAL_NUMBER	16
+#define LEN_DOMAIN_CODE		10
+#define LEN_AES_KEY		32
+#define LEN_AUTH_KEY		16
+#define LEN_GW_ID		16
 
 /* Device Information
  *
@@ -14,17 +22,21 @@
  */
 typedef struct
 {
-    char device_mf_id[32];	/* Manufacturer ID (LG) */
-    char device_type[32];	/* Device Type (aircondition, ...) */
-    char device_model_id[32];	/* Device Model ID (LG-N3333) */
-    char device_sn[32];		/* Device Serial Number */
+    char device_mf_id[LEN_MANUFACTURE_ID+1];	/* Manufacturer ID (LG) */
+    char device_type[LEN_DEVICE_TYPE+1];	/* Device Type (aircondition, ...) */
+    char device_model_id[LEN_MODEL_ID+1];	/* Device Model ID (LG-N3333) */
+    char device_sn[LEN_SERIAL_NUMBER+1];	/* Device Serial Number(auth_id) */
 } smarthome_device_info_t;
 
 typedef struct
 {
-    char ip[32];		/* service ip address */
-    ushort port;		/* server port */
+    char ip[32];				/* service ip address */
+    ushort port;				/* server port */
 
+    char domain_code[LEN_DOMAIN_CODE+1];	/* domain code(application id) */
+    char aes_key[LEN_AES_KEY+1];		/* AES key (128,192,256) */
+    char auth_key[LEN_AUTH_KEY+1];		/* auth key */
+    char gw_id[LEN_GW_ID+1];			/* Gateway ID */
 } smarhome_server_info_t;
     
 typedef struct
