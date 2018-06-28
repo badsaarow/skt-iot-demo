@@ -9,4 +9,6 @@ NAME := App_skdemo
 
 $(NAME)_SOURCES := main.c \
 		smarthome_conf.c \
-		smarthome_pairing.c
+		smarthome_pairing.c \
+		gmmp.c \
+		omp_process.c
