@@ -109,3 +109,4 @@ typedef struct _heartbeat_req_t heartbeat_resp_t;
 
 OSStatus read_gmmp_frame( int fd, void *buf, size_t *size );
 size_t fill_reg_req( void* buf );
+size_t fill_heartbeat_req( void* buf );

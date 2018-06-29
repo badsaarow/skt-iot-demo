@@ -13,6 +13,28 @@
 
 static uint32_t next_tid;
 
+static const char* get_type_name(int type)
+{
+    switch (type) {
+    case GMMP_GW_REG_REQ: return "GMMP_GW_REG_REQ";
+    case GMMP_GW_REG_RESP: return "GMMP_GW_REG_RESP";
+    case GMMP_GW_DEREG_REQ: return "GMMP_GW_DEREG_REQ";
+    case GMMP_GW_DEREG_RESP: return "GMMP_GW_DEREG_RESP";
+    case GMMP_CTRL_REQ: return "GMMP_CTRL_REQ";
+    case GMMP_CTRL_RESP: return "GMMP_CTRL_RESP";
+    case GMMP_HEARTBEAT_REQ: return "GMMP_HEARTBEAT_REQ";
+    case GMMP_HEARTBEAT_RESP: return "GMMP_HEARTBEAT_RESP";
+    case GMMP_CTRL_NOTI: return "GMMP_CTRL_NOTI";
+    case GMMP_CTRL_NOTI_RESP: return "GMMP_CTRL_NOTI_RESP";
+    case GMMP_ENC_INFO_REQ: return "GMMP_ENC_INFO_REQ";
+    case GMMP_ENC_INFO_RESP: return "GMMP_ENC_INFO_RESP";
+    case GMMP_SET_ENC_KEY_REQ: return "GMMP_SET_ENC_KEY_REQ";
+    case GMMP_SET_ENC_KEY_RESP: return "GMMP_SET_ENC_KEY_RESP";
+    default:
+	return "GMMP_UNKNOWN";
+    }
+}
+
 static void ntoh_gmmp_hd(gmmp_header_t* hd)
 {
     hd->len = ntohs(hd->len);
@@ -30,7 +52,6 @@ static void hton_gmmp_hd(gmmp_header_t* hd)
     hd->current_count = htons(hd->current_count);
     hd->tid = htonl(hd->tid);
 }
-
 
 OSStatus read_gmmp_frame( int fd, void *buf, size_t *size )
 {
@@ -63,8 +84,7 @@ OSStatus read_gmmp_frame( int fd, void *buf, size_t *size )
     return err;
 }
 
-static void fill_gmmp_hd( gmmp_header_t* hd,
-		     gmmp_type_t type, size_t total_size, uint32_t tid )
+static void fill_gmmp_hd( gmmp_header_t* hd, gmmp_type_t type, size_t total_size, uint32_t tid )
 {
     smarthome_device_user_conf_t *conf = get_user_conf();
     hd->ver = GMMP_VERSION;
@@ -80,6 +100,9 @@ static void fill_gmmp_hd( gmmp_header_t* hd,
     hd->tid = tid;
     hd->encrypted = 0;
     hd->reserved = 0;
+
+    omp_log("Send %s Packet", get_type_name(type));
+    omp_log("  size: %u, tid: %lu", total_size, tid);
 }
 
 size_t fill_reg_req( void* buf )
@@ -90,9 +113,26 @@ size_t fill_reg_req( void* buf )
     smarthome_device_user_conf_t *conf = get_user_conf();
 
     size = sizeof(*hd) + sizeof(*body);
-    fill_gmmp_hd( hd, GMMP_GW_REG_REQ, size, 0 );
+    fill_gmmp_hd( hd, GMMP_GW_REG_REQ, size, 0);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->manufacture_id, conf->dev_info.device_mf_id, sizeof(body->manufacture_id));
+
+    hton_gmmp_hd(hd);
+    return size;
+}
+
+size_t fill_heartbeat_req( void* buf )
+{
+    size_t size;
+    gmmp_header_t *hd = buf;
+    heartbeat_req_t *body = (heartbeat_req_t*)&hd[1];
+    smarthome_device_user_conf_t *conf = get_user_conf();
+
+    size = sizeof(*hd) + sizeof(*body);
+    fill_gmmp_hd( hd, GMMP_HEARTBEAT_REQ, size, 0);
+    memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
+    memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
+
     hton_gmmp_hd(hd);
     return size;
 }
