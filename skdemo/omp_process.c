@@ -97,7 +97,7 @@ static int connect_gmmp( const char* addr, int port )
     err = connect( sock_fd, (struct sockaddr *)&s_addr, addr_size );
     require_noerr_string( err, exit, "connect error" );
 
-    omp_log( "connected\n" );
+    omp_log( "connected" );
     return sock_fd;
   exit:
     return err;
@@ -198,31 +198,31 @@ static OSStatus process_recv_message( int sock_fd )
     switch ( hd->type ) {
     case GMMP_GW_REG_RESP: {
 	gw_reg_resp_t *body = (gw_reg_resp_t*)&hd[1];
-	omp_log("Recv GMMP_GW_REG_RESP: result=0x%x\n", body->result_code);
+	omp_log("Recv GMMP_GW_REG_RESP: result=0x%x", body->result_code);
 	break;
     }
     case GMMP_GW_DEREG_RESP: {
 	gw_dereg_resp_t *body = (gw_dereg_resp_t*)&hd[1];
-	omp_log("Recv GMMP_GW_DEREG_RESP: result=0x%x\n", body->result_code);
+	omp_log("Recv GMMP_GW_DEREG_RESP: result=0x%x", body->result_code);
 	break;
     }
     case GMMP_HEARTBEAT_RESP: {
-	omp_log("Recv GMMP_HEARTBEAT_RESP\n");
+	omp_log("Recv GMMP_HEARTBEAT_RESP");
 	break;
     }	
     case GMMP_CTRL_NOTI_RESP: {
 	ctrl_noti_resp_t *body = (ctrl_noti_resp_t*)&hd[1];
-	omp_log("Recv GMMP_CTRL_NOTI_RESP: result=0x%x, control type=0x%x\n", body->result_code, body->control_type);
+	omp_log("Recv GMMP_CTRL_NOTI_RESP: result=0x%x, control type=0x%x", body->result_code, body->control_type);
 	break;
     }
     case GMMP_ENC_INFO_RESP: {
 	enc_info_resp_t *body = (enc_info_resp_t*)&hd[1];
-	omp_log("Recv GMMP_ENC_INFO_RESP: result=0x%x\n", body->result_code);
+	omp_log("Recv GMMP_ENC_INFO_RESP: result=0x%x", body->result_code);
 	break;
     }
     case GMMP_SET_ENC_KEY_RESP: {
 	set_enc_key_resp_t *body = (set_enc_key_resp_t*)&hd[1];
-	omp_log("Recv GMMP_SET_ENC_KEY_RESP: result=0x%x\n", body->result_code);
+	omp_log("Recv GMMP_SET_ENC_KEY_RESP: result=0x%x", body->result_code);
 	break;
     }
     case  GMMP_CTRL_REQ: {
@@ -235,7 +235,7 @@ static OSStatus process_recv_message( int sock_fd )
 	break;
     }
     default:
-	omp_log("Recv not interresting message: type=0x%x\n", hd->type);
+	omp_log("Recv not interresting message: type=0x%x", hd->type);
 	break;
     }
 
