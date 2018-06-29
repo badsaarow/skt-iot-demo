@@ -17,8 +17,8 @@ typedef enum {
     OMP_INIT	= 0x80,
     OMP_REPORT_INTERVAL = 0x81,
     OMP_DEINIT	= 0x82,
-    OMP_CONTROL = 0x84,
-    OMP_NOTIFY	= 0x85
+    OMP_CONTROL = 0x94,
+    OMP_NOTIFY	= 0x95
 } omp_type_t;
 
 typedef void (*fill_json)( json_object *msg );
