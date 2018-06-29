@@ -62,6 +62,10 @@ OSStatus read_gmmp_frame( int fd, void *buf, size_t *size )
     OSStatus err;
 
     err = read( fd, p, 4 );
+    if (err == 0) {
+	*size = 0;
+	return kNoErr;
+    }
     require( err == 4, exit );
 
     tot = ntohs( hd->len );

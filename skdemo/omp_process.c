@@ -138,6 +138,9 @@ static OSStatus process_register( int sock_fd )
 	size = MAX_OMP_FRAME;
 	err = read_gmmp_frame( sock_fd, buf, &size );
 	require_noerr_string( err, exit, "fail to recv reg_resp" );
+	if (size == 0)
+	    continue;
+
 	require_string( hd->type == GMMP_GW_REG_RESP, exit, "no reg_resp message" );
 	omp_log("Recv GMMP_GW_REG_RESP Packet");
 	omp_log(" size: %u, tid: %lu, result_code: 0x%x", hd->len, hd->tid, reg_resp->result_code);
@@ -187,6 +190,9 @@ static OSStatus process_recv_message( int sock_fd )
     size = MAX_OMP_FRAME;
     err = read_gmmp_frame( sock_fd, buf, &size );
     require_noerr_string( err, exit, "fail to recv reg_resp" );
+    if (size == 0)
+	return kNoErr;
+    omp_log("Message size: %u", size);
     
     switch ( hd->type ) {
     case GMMP_GW_REG_RESP: {
