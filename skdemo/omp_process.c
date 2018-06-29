@@ -133,7 +133,7 @@ static OSStatus process_register( int sock_fd )
 	/* register request */
 	size = fill_reg_req( buf );
 	len = write( sock_fd, buf, size );
-	require_string( len > 0 && size == len, exit, "fail to send reg_req" );
+	require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send reg_req" );
 
 	size = MAX_OMP_FRAME;
 	err = read_gmmp_frame( sock_fd, buf, &size );
@@ -163,7 +163,7 @@ static OSStatus process_register( int sock_fd )
 
     size = fill_heartbeat_req( buf );
     len = write( sock_fd, buf, size );
-    require_string( len > 0 && size == len, exit, "fail to send GMMP_HEARTBEAT_REQ" );
+    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_HEARTBEAT_REQ" );
 
     free( buf );
   exit:
