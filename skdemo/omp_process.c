@@ -98,12 +98,14 @@ static int connect_gmmp( const char* addr, int port )
     require_noerr_string( err, exit, "connect error" );
 
     omp_log( "connected\n" );
+    return sock_fd;
   exit:
     return err;
 }
 
-static bool is_registered_already( smarthome_device_user_conf_t* s_conf )
+static bool is_registered_already( void )
 {
+    smarthome_device_user_conf_t* s_conf = get_user_conf();
     smarhome_server_info_t* server = &s_conf->server;
 
     if (server->domain_code[0] && server->auth_key[0] && server->gw_id[0])
@@ -112,7 +114,7 @@ static bool is_registered_already( smarthome_device_user_conf_t* s_conf )
 	return false;
 }
 
-static OSStatus process_register( int sock_fd, smarthome_device_user_conf_t* s_conf )
+static OSStatus process_register( int sock_fd )
 {
     OSStatus err = kUnknownErr;
     void *buf;
@@ -120,13 +122,12 @@ static OSStatus process_register( int sock_fd, smarthome_device_user_conf_t* s_c
     int len;
     gmmp_header_t *hd;
     gw_reg_resp_t *reg_resp;
-    ctrl_req_t *ctrl_req;
+    smarthome_device_user_conf_t* s_conf = get_user_conf();
     
     buf = malloc( MAX_OMP_FRAME );
     require( buf, exit );
     hd = buf;
     reg_resp = (gw_reg_resp_t*)&hd[1];
-    ctrl_req = (ctrl_req_t*)&hd[1];
 
     while (1) {
 	/* register request */
@@ -155,39 +156,110 @@ static OSStatus process_register( int sock_fd, smarthome_device_user_conf_t* s_c
     err = mico_system_context_update(mico_system_context_get());
     check_string(err == kNoErr, "Fail to update conf to Flash memory");
 
-    /* waiting device initialize message */
-    size = MAX_OMP_FRAME;
-    err = read_gmmp_frame( sock_fd, buf, &size );
-    require_noerr_string( err, exit, "fail to recv device init message" );
-    require_string( hd->type == GMMP_CTRL_REQ, exit, "no control_req message" );
-    require_string( ctrl_req->control_type == OMP_INIT, exit, "no OMP_INIT data" );
-
-    /* TODO: 여기서 부터 시작(json parse) */
-    
-
-    
     free( buf );
   exit:
     return err;
 }
 
+static OSStatus process_control_message( int sock_fd )
+{
+    OSStatus err = kNoErr;
+    
+    return err;
+}
+
+static OSStatus process_recv_message( int sock_fd )
+{
+    void *buf;
+    size_t size;
+    OSStatus err = kUnknownErr;
+    gmmp_header_t *hd;
+    buf = malloc( MAX_OMP_FRAME );
+    require( buf, exit );
+    hd = buf;
+
+    size = MAX_OMP_FRAME;
+    err = read_gmmp_frame( sock_fd, buf, &size );
+    require_noerr_string( err, exit, "fail to recv reg_resp" );
+    
+    switch ( hd->type ) {
+    case GMMP_GW_REG_RESP: {
+	gw_reg_resp_t *body = (gw_reg_resp_t*)&hd[1];
+	omp_log("Recv GMMP_GW_REG_RESP: result=0x%x\n", body->result_code);
+	break;
+    }
+    case GMMP_GW_DEREG_RESP: {
+	gw_dereg_resp_t *body = (gw_dereg_resp_t*)&hd[1];
+	omp_log("Recv GMMP_GW_DEREG_RESP: result=0x%x\n", body->result_code);
+	break;
+    }
+    case GMMP_HEARTBEAT_RESP: {
+	omp_log("Recv GMMP_HEARTBEAT_RESP\n");
+	break;
+    }	
+    case GMMP_CTRL_NOTI_RESP: {
+	ctrl_noti_resp_t *body = (ctrl_noti_resp_t*)&hd[1];
+	omp_log("Recv GMMP_CTRL_NOTI_RESP: result=0x%x, control type=0x%x\n", body->result_code, body->control_type);
+	break;
+    }
+    case GMMP_ENC_INFO_RESP: {
+	enc_info_resp_t *body = (enc_info_resp_t*)&hd[1];
+	omp_log("Recv GMMP_ENC_INFO_RESP: result=0x%x\n", body->result_code);
+	break;
+    }
+    case GMMP_SET_ENC_KEY_RESP: {
+	set_enc_key_resp_t *body = (set_enc_key_resp_t*)&hd[1];
+	omp_log("Recv GMMP_SET_ENC_KEY_RESP: result=0x%x\n", body->result_code);
+	break;
+    }
+    case  GMMP_CTRL_REQ: {
+	ctrl_req_t *body = (ctrl_req_t*)&hd[1];
+	omp_log("Recv GMMP_CTRL_REQ: control type=0x%x\n", body->control_type);
+	err = process_control_message( sock_fd );
+	break;
+    }
+    default:
+	omp_log("Recv not interresting message: type=0x%x\n", hd->type);
+	break;
+    }
+
+  exit:
+    return err;
+    
+}
+
 static void omp_thread( mico_thread_arg_t arg )
 {
     int sock_fd;
+    fd_set readfds;
+    struct timeval t;
     OSStatus err = kUnknownErr;
-    smarthome_device_user_conf_t* s_conf = smarthome_conf_get();
+    smarthome_device_user_conf_t* s_conf = get_user_conf();
 
-    
     while ( 1 ) {
 	sock_fd = connect_gmmp( s_conf->server.ip, s_conf->server.port );
 	require( sock_fd > 0, retry );
 
-	if ( ! is_registered_already( s_conf ) )
-	    err = process_register( sock_fd, s_conf );
-	
-	
+	if ( ! is_registered_already() ) {
+	    err = process_register( sock_fd );
+	    require_noerr(err, retry);
+	}
 
+	while (1) {
+	    t.tv_sec = 60;
+	    t.tv_usec = 0;
+	    FD_ZERO(&readfds);
+	    FD_SET(sock_fd, &readfds);
+	    require(select( Max(sock_fd, sock_fd) + 1 , &readfds, NULL, NULL, &t) >= 0, retry);
+	    
+	    if ( FD_ISSET(sock_fd, &readfds) ) {
+		err = process_recv_message( sock_fd );
+		require_noerr(err, retry);
+	    }
+	}
       retry:
+	close( sock_fd );
+	sock_fd = -1;
 	mico_thread_msleep(2000);
     }
 }

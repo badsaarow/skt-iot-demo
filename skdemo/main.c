@@ -7,6 +7,7 @@
 #include "mico.h"
 
 #include "smarthome_conf.h"
+#include "omp.h"
 
 #define smarthome_log(format, ...)  custom_log("main", format, ##__VA_ARGS__)
 
@@ -17,7 +18,10 @@ int application_start( void )
     smarthome_conf_cli_register();
 
     /* Output on debug serial port */
-    smarthome_log( "Start SmartHome Main!" );
+    smarthome_log( "Start SmartHome Demo!" );
+
+    if (mico_system_context_get()->micoSystemConfig.configured == allConfigured)
+	    omp_client_start();
 
     /* Trigger MiCO system led available on most MiCOKit */
     while(1)

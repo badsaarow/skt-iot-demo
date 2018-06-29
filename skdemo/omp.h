@@ -28,3 +28,6 @@ typedef enum {
     OMP_CONTROL = 0x84,
     OMP_NOTIFY	= 0x85
 } omp_type_t;
+
+OSStatus omp_client_start( void );
+OSStatus omp_client_stop( void );
