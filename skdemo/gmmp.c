@@ -89,7 +89,7 @@ size_t fill_reg_req( void* buf )
     gw_reg_req_t *body = (gw_reg_req_t*)&hd[1];
     smarthome_device_user_conf_t *conf = get_user_conf();
 
-    size = sizeof(hd) + sizeof(body);
+    size = sizeof(*hd) + sizeof(*body);
     fill_gmmp_hd( hd, GMMP_GW_REG_REQ, size, 0 );
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->manufacture_id, conf->dev_info.device_mf_id, sizeof(body->manufacture_id));
