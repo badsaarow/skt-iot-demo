@@ -63,9 +63,10 @@ OSStatus read_gmmp_frame( int fd, void *buf, size_t *size )
     return err;
 }
 
-static void fill_gmmp_hd( smarthome_device_user_conf_t *conf, gmmp_header_t* hd,
+static void fill_gmmp_hd( gmmp_header_t* hd,
 		     gmmp_type_t type, size_t total_size, uint32_t tid )
 {
+    smarthome_device_user_conf_t *conf = get_user_conf();
     hd->ver = GMMP_VERSION;
     hd->len = total_size;
     hd->type = type;
@@ -86,10 +87,10 @@ size_t fill_reg_req( void* buf )
     size_t size;
     gmmp_header_t *hd = buf;
     gw_reg_req_t *body = (gw_reg_req_t*)&hd[1];
-    smarthome_device_user_conf_t *conf = smarthome_conf_get();
+    smarthome_device_user_conf_t *conf = get_user_conf();
 
     size = sizeof(hd) + sizeof(body);
-    fill_gmmp_hd( conf, hd, GMMP_GW_REG_REQ, size, 0 );
+    fill_gmmp_hd( hd, GMMP_GW_REG_REQ, size, 0 );
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->manufacture_id, conf->dev_info.device_mf_id, sizeof(body->manufacture_id));
     hton_gmmp_hd(hd);

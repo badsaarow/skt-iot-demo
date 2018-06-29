@@ -17,18 +17,6 @@ static const struct cli_command smarthome_clis[] = {
     {"factory", "set factory setting", factory_Command},
 };
 
-smarthome_device_user_conf_t* smarthome_conf_get( void )
-{
-    smarthome_device_user_conf_t* conf = NULL;
-    mico_Context_t* in_context = mico_system_context_get();
-    require(in_context, exit);
-
-    conf = mico_system_context_get_user_data( in_context );
-    require(conf, exit);
-exit:
-    return conf;
-}
-
 #define FILL_USER_CONF(cmd, field)					\
 {									\
     if (!processed && !strcasecmp(argv[1], cmd)) {			\
@@ -44,8 +32,7 @@ exit:
 static void factory_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, char **argv )
 {
     OSStatus status;
-    smarthome_device_user_conf_t* conf;
-    conf = smarthome_conf_get();
+    smarthome_device_user_conf_t* conf = get_user_conf();
     mico_rtos_lock_mutex( &sys_context->flashContentInRam_mutex );
     memset( &conf->server, 0, sizeof(conf->server) );
     sys_context->flashContentInRam.micoSystemConfig.configured = unConfigured;
@@ -57,8 +44,7 @@ static void factory_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, 
 
 static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, char **argv )
 {
-    smarthome_device_user_conf_t* conf;
-    conf = smarthome_conf_get();
+    smarthome_device_user_conf_t* conf = get_user_conf();
     require(conf, WRONGCMD);
 
     if (argc == 1) {

@@ -172,7 +172,7 @@ static OSStatus process_request_message( int fd, char* buf, size_t len )
 	err = kNoErr;
     } else if ( strcmp( fields[E_CODE].value, "DP1100" ) == 0 ) {
 	/* Device Info */
-	smarthome_device_user_conf_t* user = smarthome_conf_get();
+	smarthome_device_user_conf_t* user = get_user_conf();
 	mico_rtos_lock_mutex(&sys_context->flashContentInRam_mutex);
 	json_object_object_add(report, "device_mf_id", json_object_new_string(user->dev_info.device_mf_id));
 	json_object_object_add(report, "device_type", json_object_new_string(user->dev_info.device_type));
@@ -182,7 +182,7 @@ static OSStatus process_request_message( int fd, char* buf, size_t len )
 	err = kNoErr;
     } else if ( strcmp( fields[E_CODE].value, "DP1200" ) == 0 ) {
 	/* Connect to Server */
-	smarthome_device_user_conf_t* user = smarthome_conf_get();
+	smarthome_device_user_conf_t* user = get_user_conf();
 	mico_rtos_lock_mutex(&sys_context->flashContentInRam_mutex);
 	strncpy(user->server.ip, fields[E_IP].value, maxSsidLen);
 	user->server.port = atoi(fields[E_PORT].value);

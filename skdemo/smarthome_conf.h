@@ -47,5 +47,9 @@ typedef struct
 
 #define smarthome_get_size_user_data()	(sizeof(smarthome_device_user_conf_t))
 
-smarthome_device_user_conf_t* smarthome_conf_get( void );
 int smarthome_conf_cli_register( void );
+
+static inline smarthome_device_user_conf_t *get_user_conf(void)
+{
+	return mico_system_context_get_user_data(mico_system_context_get());
+}
