@@ -141,3 +141,44 @@ size_t fill_heartbeat_req( void* buf )
     return size;
 }
 
+size_t fill_ctrl_resp( void* buf, gmmp_header_t *req)
+{
+    size_t size;
+    gmmp_header_t *hd = buf;
+    ctrl_resp_t *body = (ctrl_resp_t*)&hd[1];
+    ctrl_req_t *body_req = (ctrl_req_t*)&req[1];
+
+    size = sizeof(*hd) + sizeof(*body);
+    hd->type = GMMP_CTRL_RESP;
+    hd->len = size;
+    hd->total_count = hd->current_count = 1;
+    hd->encrypted = 0;
+
+    *((ctrl_req_t*)body) = *body_req;
+    body->result_code = 0;
+
+    omp_log("Send %s Packet", get_type_name(hd->type));
+    omp_log("  size: %u, tid: %lu", size, hd->tid);
+
+    hton_gmmp_hd(hd);
+    return size;
+}
+
+size_t fill_ctrl_noti( void* buf, int control_type )
+{
+    size_t size;
+    gmmp_header_t *hd = buf;
+    ctrl_noti_t *body = (ctrl_noti_t*)&hd[1];
+    smarthome_device_user_conf_t *conf = get_user_conf();
+
+    size = sizeof(*hd) + sizeof(*body);
+    fill_gmmp_hd( hd, GMMP_CTRL_NOTI, size, 0);
+    memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
+    memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
+    memset(body->device_id, 0, sizeof(body->device_id));
+    body->control_type = control_type;
+    body->result_code = 0;
+
+    hton_gmmp_hd(hd);
+    return size;
+}

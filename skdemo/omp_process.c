@@ -15,12 +15,13 @@ extern system_context_t* sys_context;
 
 typedef struct
 {
-    
+    int content_cycle;
 
 } omp_state_t;
 
-
-omp_state_t state;
+static omp_state_t omp_state = {
+    .content_cycle = 600
+};
 
 static OSStatus usergethostbyname( const char * domain, uint8_t * addr, uint8_t addrLen )
 {
@@ -170,11 +171,60 @@ static OSStatus process_register( int sock_fd )
     return err;
 }
 
-static OSStatus process_control_message( char* str, size_t size )
+static OSStatus process_omp_init( int sock_fd, json_object *msg, void *buf )
+{
+    int len;
+    size_t size;
+    json_object* report = NULL;
+    const char *  json_str;
+    OSStatus err = kNoErr;
+
+    report = json_object_new_object();
+    json_object_object_foreach( msg, key, val ) {
+	if ( strcmp( key, "command_id" ) == 0 ) {
+	    json_object_object_add(report, "command_id", json_object_new_string(json_object_get_string(val)));
+	} else if ( strcmp( key, "content_cycle" ) == 0 ) {
+	    json_object_object_add(report, "content_cycle", json_object_new_string(json_object_get_string(val)));
+	}
+    }
+    json_str = json_object_to_json_string(report);
+    omp_log(json_str);
+    require_action( json_str, exit, err = kNoMemoryErr );
+
+    size = fill_ctrl_noti( buf, OMP_INIT );
+    len = write( sock_fd, buf, size );
+    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
+
+  exit:
+    if(report)
+	json_object_put(report);
+    return err;
+}
+
+static OSStatus process_control_message( int sock_fd, int control_type, char* str, size_t size, void *buf )
 {
     OSStatus err = kNoErr;
-    printf("######## %s\n", str);
+    json_object *msg = NULL;
     omp_log("%s", str);
+
+    msg = json_tokener_parse( str );
+    require_action( msg, exit, err = kUnknownErr );
+
+    switch (control_type) {
+    case OMP_INIT:
+	err = process_omp_init( sock_fd, msg, buf );
+	break;
+    case OMP_REPORT_INTERVAL:
+    case OMP_DEINIT:
+    case OMP_CONTROL:
+    default:
+	omp_log("Unknown control type = %d(0x%x)", control_type, control_type);
+	break;
+    }
+
+  exit:
+    if(msg)
+	json_object_put(msg);
     return err;
 }
 
@@ -183,8 +233,8 @@ static OSStatus process_recv_message( int sock_fd )
     void *buf;
     size_t size;
     OSStatus err = kUnknownErr;
-    gmmp_header_t *hd;
-    buf = malloc( MAX_OMP_FRAME );
+    gmmp_header_t *hd, *hd_resp;
+    buf = malloc( MAX_OMP_FRAME * 2 );
     require( buf, exit );
     hd = buf;
 
@@ -226,12 +276,21 @@ static OSStatus process_recv_message( int sock_fd )
 	break;
     }
     case  GMMP_CTRL_REQ: {
+	int len;
 	ctrl_req_t *body = (ctrl_req_t*)&hd[1];
 	char *json_data = (char*)&body[1];
 	size_t size = hd->len - sizeof(*hd) - sizeof(*body);
 	json_data[size] = '\0';
 	omp_log("Recv GMMP_CTRL_REQ: control type=0x%x (json=%u)", body->control_type, size);
-	err = process_control_message( json_data, size );
+
+	/* reply first */
+	hd_resp = (void*)((char*)buf + MAX_OMP_FRAME);
+	size = fill_ctrl_resp( hd_resp, hd );
+	len = write( sock_fd, buf, size );
+	require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to respond GMMP_CTRL_REQ" );
+	
+	err = process_control_message( sock_fd, body->control_type, json_data, size, hd_resp );
+
 	break;
     }
     default:
