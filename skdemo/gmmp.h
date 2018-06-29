@@ -46,7 +46,7 @@ typedef struct _gw_reg_req_t {
     char manufacture_id[LEN_MANUFACTURE_ID];
 } __attribute__((packed)) gw_reg_req_t;
 
-typedef struct _gw_req_resp_t {
+typedef struct _gw_reg_resp_t {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
     uint8_t result_code;
