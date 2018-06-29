@@ -186,7 +186,8 @@ static OSStatus process_request_message( int fd, char* buf, size_t len )
 	mico_rtos_lock_mutex(&sys_context->flashContentInRam_mutex);
 	strncpy(user->server.ip, fields[E_IP].value, maxSsidLen);
 	user->server.port = atoi(fields[E_PORT].value);
-	strncpy(sys_context->flashContentInRam.micoSystemConfig.name, fields[E_SID].value, maxNameLen);
+	memset(user->server.domain_code, 0, sizeof(user->server.domain_code));
+	strncpy(user->server.domain_code, fields[E_SID].value, sizeof(user->server.domain_code)-1);
 	mico_rtos_unlock_mutex(&sys_context->flashContentInRam_mutex);
 	err = mico_system_context_update(mico_system_context_get());
 	check_string(err == kNoErr, "Fail to update conf to Flash memory");
