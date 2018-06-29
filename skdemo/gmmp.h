@@ -55,6 +55,7 @@ typedef struct _gw_reg_resp_t {
 typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
+    char device_id[16];
     uint8_t control_type;
 } __attribute__((packed)) ctrl_req_t;
 
