@@ -6,14 +6,6 @@
  */
 #include "mico.h"
 
-#ifndef MICO_OMP_LOG_INFO_DISABLE
-  #define omp_log(M, ...) custom_log("OMP", M, ##__VA_ARGS__)
-  #define omp_log_trace() custom_log_trace("OMP")
-#else
-  #define omp_log(M, ...)
-  #define omp_log_trace()
-#endif
-
 #define MAX_OMP_FRAME				(400)
  
 #define OMP_CLIENT_SOCKET_TIMEOUT              (5000)  // 5s
