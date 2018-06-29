@@ -139,10 +139,12 @@ static OSStatus process_register( int sock_fd )
 	err = read_gmmp_frame( sock_fd, buf, &size );
 	require_noerr_string( err, exit, "fail to recv reg_resp" );
 	require_string( hd->type == GMMP_GW_REG_RESP, exit, "no reg_resp message" );
+	omp_log("Recv GMMP_GW_REG_RESP Packet");
+	omp_log(" size: %u, tid: %lu, result_code: 0x%x", hd->len, hd->tid, reg_resp->result_code);
 
 	if (reg_resp->result_code == 0)
 	    break;
-	
+
 	mico_thread_msleep(2000);
     }
     
@@ -155,6 +157,10 @@ static OSStatus process_register( int sock_fd )
     mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
     err = mico_system_context_update(mico_system_context_get());
     check_string(err == kNoErr, "Fail to update conf to Flash memory");
+
+    size = fill_heartbeat_req( buf );
+    len = write( sock_fd, buf, size );
+    require_string( len > 0 && size == len, exit, "fail to send GMMP_HEARTBEAT_REQ" );
 
     free( buf );
   exit:
