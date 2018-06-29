@@ -170,10 +170,11 @@ static OSStatus process_register( int sock_fd )
     return err;
 }
 
-static OSStatus process_control_message( int sock_fd )
+static OSStatus process_control_message( char* str, size_t size )
 {
     OSStatus err = kNoErr;
-    
+    printf("######## %s\n", str);
+    omp_log("%s", str);
     return err;
 }
 
@@ -226,8 +227,11 @@ static OSStatus process_recv_message( int sock_fd )
     }
     case  GMMP_CTRL_REQ: {
 	ctrl_req_t *body = (ctrl_req_t*)&hd[1];
-	omp_log("Recv GMMP_CTRL_REQ: control type=0x%x\n", body->control_type);
-	err = process_control_message( sock_fd );
+	char *json_data = (char*)&body[1];
+	size_t size = hd->len - sizeof(*hd) - sizeof(*body);
+	json_data[size] = '\0';
+	omp_log("Recv GMMP_CTRL_REQ: control type=0x%x (json=%u)", body->control_type, size);
+	err = process_control_message( json_data, size );
 	break;
     }
     default:
