@@ -9,12 +9,14 @@
 
 extern system_context_t* sys_context;
 
+static void factory_init_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, char **argv );
 static void factory_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, char **argv );
 static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, char **argv );
 
 static const struct cli_command smarthome_clis[] = {
+    {"factory", "rollback to factory setting", factory_Command},
+    {"eraseall", "erase all settings inlcuding product info", factory_init_Command},
     {"devinfo", "get/set device info", devinfo_Command},
-    {"factory", "set factory setting", factory_Command},
 };
 
 #define FILL_USER_CONF(cmd, field)					\
@@ -27,6 +29,19 @@ static const struct cli_command smarthome_clis[] = {
 	strcpy(conf->field, argv[2]);					\
 	processed = MICO_TRUE;						\
     }									\
+}
+
+static void factory_init_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, char **argv )
+{
+    OSStatus status;
+    smarthome_device_user_conf_t* conf = get_user_conf();
+    mico_rtos_lock_mutex( &sys_context->flashContentInRam_mutex );
+    memset( conf, 0, sizeof(*conf) );
+    sys_context->flashContentInRam.micoSystemConfig.configured = unConfigured;
+    mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
+    status = mico_system_context_update(mico_system_context_get());
+    check_string(status == kNoErr, "Fail to update conf to Flash memory");
+    cmd_printf( "Reset All Device Information\n" );
 }
 
 static void factory_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, char **argv )
