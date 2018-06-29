@@ -162,12 +162,8 @@ static OSStatus process_register( int sock_fd )
     err = mico_system_context_update(mico_system_context_get());
     check_string(err == kNoErr, "Fail to update conf to Flash memory");
 
-    size = fill_heartbeat_req( buf );
-    len = write( sock_fd, buf, size );
-    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_HEARTBEAT_REQ" );
-
-    free( buf );
   exit:
+    free( buf );
     return err;
 }
 
@@ -188,7 +184,7 @@ static OSStatus process_omp_init( int sock_fd, json_object *msg, void *buf )
 	}
     }
     json_str = json_object_to_json_string(report);
-    omp_log(json_str);
+    omp_log("%s", json_str);
     require_action( json_str, exit, err = kNoMemoryErr );
 
     size = fill_ctrl_noti( buf, OMP_INIT );
@@ -303,6 +299,25 @@ static OSStatus process_recv_message( int sock_fd )
     
 }
 
+static OSStatus send_heaertbeat( int sock_fd )
+{
+    void *buf;
+    int len;
+    size_t size;
+    OSStatus err = kNoErr;
+
+    buf = malloc( MAX_OMP_FRAME );
+    require( buf, exit );
+
+    size = fill_heartbeat_req( buf );
+    len = write( sock_fd, buf, size );
+    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_HEARTBEAT_REQ" );
+
+  exit:
+    free( buf );
+    return err;
+}
+
 static void omp_thread( mico_thread_arg_t arg )
 {
     int sock_fd;
@@ -310,6 +325,7 @@ static void omp_thread( mico_thread_arg_t arg )
     struct timeval t;
     OSStatus err = kUnknownErr;
     smarthome_device_user_conf_t* s_conf = get_user_conf();
+    time_t heartbeat_time = 0;
 
     while ( 1 ) {
 	sock_fd = connect_gmmp( s_conf->server.ip, s_conf->server.port );
@@ -321,7 +337,15 @@ static void omp_thread( mico_thread_arg_t arg )
 	}
 
 	while (1) {
-	    t.tv_sec = 60;
+	    int diff = time(NULL) - heartbeat_time;
+	    if (diff >= HEARTBEAT_INTERVAL || heartbeat_time == 0) {
+		err = send_heaertbeat( sock_fd );
+		require_noerr(err, retry);
+
+		heartbeat_time = time(NULL);
+	    }
+
+	    t.tv_sec = HEARTBEAT_INTERVAL - diff;
 	    t.tv_usec = 0;
 	    FD_ZERO(&readfds);
 	    FD_SET(sock_fd, &readfds);

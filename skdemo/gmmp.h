@@ -8,6 +8,8 @@
 
 #include "smarthome_conf.h"
 
+#define HEARTBEAT_INTERVAL	60
+
 typedef enum {
     GMMP_GW_REG_REQ		= 0x01,
     GMMP_GW_REG_RESP		= 0x02,
