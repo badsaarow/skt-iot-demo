@@ -171,8 +171,8 @@ size_t fill_ctrl_noti( void* buf, int control_type, int json_size )
     ctrl_noti_t *body = (ctrl_noti_t*)&hd[1];
     smarthome_device_user_conf_t *conf = get_user_conf();
 
-    size = sizeof(*hd) + sizeof(*body) + json_size;
-    fill_gmmp_hd( hd, GMMP_CTRL_NOTI, size, 0);
+    size = sizeof(*hd) + sizeof(*body);
+    fill_gmmp_hd( hd, GMMP_CTRL_NOTI, size + json_size, 0);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id));
