@@ -16,11 +16,13 @@ extern system_context_t* sys_context;
 typedef struct
 {
     int content_cycle;
+    fill_json fill_json;
 
 } omp_state_t;
 
 static omp_state_t omp_state = {
-    .content_cycle = 600
+    .content_cycle = 600,
+    .fill_json = NULL
 };
 
 static OSStatus usergethostbyname( const char * domain, uint8_t * addr, uint8_t addrLen )
@@ -170,6 +172,7 @@ static OSStatus process_register( int sock_fd )
 static OSStatus process_omp_init( int sock_fd, json_object *msg, void *buf )
 {
     int len;
+    int json_size;
     size_t size;
     json_object* report = NULL;
     const char *  json_str;
@@ -187,9 +190,12 @@ static OSStatus process_omp_init( int sock_fd, json_object *msg, void *buf )
     omp_log("%s", json_str);
     require_action( json_str, exit, err = kNoMemoryErr );
 
-    size = fill_ctrl_noti( buf, OMP_INIT );
+    json_size = strlen(json_str);
+    size = fill_ctrl_noti( buf, OMP_INIT, json_size );
     len = write( sock_fd, buf, size );
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
+    len = write( sock_fd, json_str, json_size );
+    require_action( len > 0 && len == json_size, exit, err = kWriteErr );
 
   exit:
     if(report)
@@ -301,7 +307,7 @@ static OSStatus process_recv_message( int sock_fd )
 
 static OSStatus send_heaertbeat( int sock_fd )
 {
-    void *buf;
+    void *buf = NULL;
     int len;
     size_t size;
     OSStatus err = kNoErr;
@@ -314,7 +320,57 @@ static OSStatus send_heaertbeat( int sock_fd )
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_HEARTBEAT_REQ" );
 
   exit:
-    free( buf );
+    if ( buf )
+	free( buf );
+    return err;
+}
+
+static OSStatus send_periodic_report( int sock_fd )
+{
+    OSStatus err = kNoErr;
+    json_object* report = NULL;
+    json_object* msg = NULL;
+    const char * msg_str;
+    const char * report_str;
+    int report_size;
+    int len;
+    size_t size;
+    void *buf = NULL;
+
+    buf = malloc( MAX_OMP_FRAME );
+    require( buf, exit );
+
+    omp_log("Prepare periodic report");
+    report = json_object_new_object();
+    msg = json_object_new_object();
+    require( report && msg, exit );
+
+    omp_state.fill_json( msg );
+
+    msg_str = json_object_to_json_string( msg );
+    omp_log("%s", msg_str);
+    require_action( msg_str, exit, err = kNoMemoryErr );
+
+    json_object_object_add(report, "content_type", json_object_new_string("periodic_data"));
+    json_object_object_add(report, "content_value", json_object_new_string(msg_str));
+    report_str = json_object_to_json_string( report );
+    report_size = strlen( report_str );
+    omp_log("%s", report_str);
+
+    size = fill_ctrl_noti( buf, OMP_NOTIFY, report_size );
+    len = write( sock_fd, buf, size );
+    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
+    len = write( sock_fd, report_str, report_size );
+    require_action( len > 0 && len == report_size, exit, err = kWriteErr );
+
+  exit:
+    if ( buf )
+	free( buf );
+    if ( report )
+	json_object_put(report);
+    if ( msg )
+	json_object_put(msg);
+
     return err;
 }
 
@@ -326,6 +382,7 @@ static void omp_thread( mico_thread_arg_t arg )
     OSStatus err = kUnknownErr;
     smarthome_device_user_conf_t* s_conf = get_user_conf();
     time_t heartbeat_time = 0;
+    time_t periodic_data_time = 0;
 
     while ( 1 ) {
 	sock_fd = connect_gmmp( s_conf->server.ip, s_conf->server.port );
@@ -336,16 +393,26 @@ static void omp_thread( mico_thread_arg_t arg )
 	    require_noerr(err, retry);
 	}
 
+	heartbeat_time = 0;
+	periodic_data_time = 0;
+
 	while (1) {
-	    int diff = time(NULL) - heartbeat_time;
-	    if (diff >= HEARTBEAT_INTERVAL || heartbeat_time == 0) {
+	    int diff, diff_periodic;
+	    int diff_heartbeat = time(NULL) - heartbeat_time;
+	    if (diff_heartbeat >= HEARTBEAT_INTERVAL || heartbeat_time == 0) {
 		err = send_heaertbeat( sock_fd );
 		require_noerr(err, retry);
-
 		heartbeat_time = time(NULL);
 	    }
+	    diff_periodic = time(NULL) - periodic_data_time;
+	    if (diff_periodic >= omp_state.content_cycle || periodic_data_time == 0) {
+		err = send_periodic_report( sock_fd );
+		require_noerr(err, retry);
+		periodic_data_time = time(NULL);
+	    }
 
-	    t.tv_sec = HEARTBEAT_INTERVAL - diff;
+	    diff = Min(HEARTBEAT_INTERVAL - diff_heartbeat, omp_state.content_cycle - diff_periodic);
+	    t.tv_sec = diff;
 	    t.tv_usec = 0;
 	    FD_ZERO(&readfds);
 	    FD_SET(sock_fd, &readfds);
@@ -363,9 +430,11 @@ static void omp_thread( mico_thread_arg_t arg )
     }
 }
 
-OSStatus omp_client_start( void )
+OSStatus omp_client_start( fill_json fn )
 {
     OSStatus err = kNoErr;
+
+    omp_state.fill_json = fn;
 
     err = mico_rtos_create_thread( NULL, MICO_APPLICATION_PRIORITY, "OMP",
 				   omp_thread, STACK_SIZE_LOCAL_CONFIG_CLIENT_THREAD, 0 );

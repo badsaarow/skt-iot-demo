@@ -6,7 +6,7 @@
  */
 #include "mico.h"
 
-#define MAX_OMP_FRAME				(400)
+#define MAX_OMP_FRAME				(600)
  
 #define OMP_CLIENT_SOCKET_TIMEOUT              (5000)  // 5s
 #define OMP_CLIENT_SOCKET_TCP_KEEPIDLE         (10)  // tcp keepavlie idle time 10s
@@ -21,5 +21,7 @@ typedef enum {
     OMP_NOTIFY	= 0x85
 } omp_type_t;
 
-OSStatus omp_client_start( void );
+typedef void (*fill_json)( json_object *msg );
+
+OSStatus omp_client_start( fill_json fn );
 OSStatus omp_client_stop( void );
