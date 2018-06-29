@@ -165,6 +165,7 @@ static OSStatus process_request_message( int fd, char* buf, size_t len )
 	sys_context->flashContentInRam.micoSystemConfig.security = SECURITY_TYPE_AUTO;
 	strncpy(sys_context->flashContentInRam.micoSystemConfig.key, fields[E_PWD].value, maxKeyLen);
 	sys_context->flashContentInRam.micoSystemConfig.keyLength = strlen(fields[E_PWD].value);
+	sys_context->flashContentInRam.micoSystemConfig.dhcpEnable   = true;
         sys_context->flashContentInRam.micoSystemConfig.configured = allConfigured;
 	mico_rtos_unlock_mutex(&sys_context->flashContentInRam_mutex);
 	err = mico_system_context_update(mico_system_context_get());
