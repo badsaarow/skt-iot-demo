@@ -6,6 +6,7 @@
  */
 #include "mico.h"
 #include "timeout.h"
+#include "smarthome_conf.h"
 
 static int timeout_len;
 static timeout_t *timeout_table;
@@ -49,6 +50,7 @@ OSStatus timeout_disable(int index)
     OSStatus err = kNoErr;
     require_action(index >= 0 && index < timeout_len, exit, err = kRangeErr);
     timeout_table[index].enabled = false;
+    omp_log("Disable timeout: index=%d", index);
   exit:
     return err;
 }
@@ -56,6 +58,7 @@ OSStatus timeout_disable(int index)
 OSStatus timeout_disable_all(void)
 {
     memset(timeout_table, 0, sizeof(timeout_t) * timeout_len);
+    omp_log("Disable timeout all");
     return kNoErr;
 }
 
@@ -64,7 +67,8 @@ OSStatus timeout_enable(int index, uint32_t interval)
     time_t cur;
     OSStatus err = kNoErr;
     require_action(index >= 0 && index < timeout_len, exit, err = kRangeErr);
-    
+
+    omp_log("Enable timeout: index=%d, interval=%lu", index, interval);
     cur = time(NULL);
     timeout_table[index].interval = interval;
     timeout_table[index].next_timeout = cur + interval;
