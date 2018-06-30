@@ -23,6 +23,7 @@
 #define LEN_AES_KEY		32
 #define LEN_AUTH_KEY		16
 #define LEN_GW_ID		16
+#define LEN_DEVICE_ID		16
 
 /* Device Information
  *

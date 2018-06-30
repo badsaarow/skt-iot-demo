@@ -73,20 +73,20 @@ typedef struct {
 typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
-    char device_id[16];
+    char device_id[LEN_DEVICE_ID];
     uint8_t result_code;
 } __attribute__((packed)) dev_reg_resp_t;
 
 typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
-    char device_id[16];
+    char device_id[LEN_DEVICE_ID];
 } __attribute__((packed)) profile_req_t;
 
 typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
-    char device_id[16];
+    char device_id[LEN_DEVICE_ID];
     uint8_t result_code;
     uint32_t heartbeat_period;
     uint32_t report_period;
@@ -101,7 +101,7 @@ typedef struct {
 typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
-    char device_id[16];
+    char device_id[LEN_DEVICE_ID];
     uint8_t report_time;
     uint8_t media_type;
 } __attribute__((packed)) delivery_req_t;
@@ -109,7 +109,7 @@ typedef struct {
 typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
-    char device_id[16];
+    char device_id[LEN_DEVICE_ID];
     uint8_t result_code;
     uint32_t backoof_time;
 } __attribute__((packed)) delivery_resp_t;
@@ -117,14 +117,14 @@ typedef struct {
 typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
-    char device_id[16];
+    char device_id[LEN_DEVICE_ID];
     uint8_t control_type;
 } __attribute__((packed)) ctrl_req_t;
 
 typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
-    char device_id[16];
+    char device_id[LEN_DEVICE_ID];
     uint8_t control_type;
     uint8_t result_code;
 } __attribute__((packed)) ctrl_resp_t;
@@ -137,13 +137,13 @@ typedef struct {
 typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
-    char device_id[16];
+    char device_id[LEN_DEVICE_ID];
 } __attribute__((packed)) enc_info_req_t;
 
 typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
-    char device_id[16];
+    char device_id[LEN_DEVICE_ID];
     uint8_t result_code;
     uint8_t enc_flag;
     uint8_t enc_algorithm;
@@ -152,14 +152,14 @@ typedef struct {
 typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
-    char device_id[16];
+    char device_id[LEN_DEVICE_ID];
     char enc_key[LEN_AES_KEY];
 } __attribute__((packed)) set_enc_key_req_t;
 
 typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
-    char device_id[16];
+    char device_id[LEN_DEVICE_ID];
     uint8_t result_code;
 } __attribute__((packed)) set_enc_key_resp_t;
 
