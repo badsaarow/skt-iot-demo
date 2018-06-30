@@ -47,6 +47,7 @@ typedef struct
     char aes_key[LEN_AES_KEY+1];		/* AES key (128,192,256) */
     char auth_key[LEN_AUTH_KEY+1];		/* auth key */
     char gw_id[LEN_GW_ID+1];			/* Gateway ID */
+    char dev_id[LEN_DEVICE_TYPE+1];		/* Devcie ID */
 } smarhome_server_info_t;
     
 typedef struct
