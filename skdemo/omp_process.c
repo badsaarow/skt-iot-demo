@@ -10,20 +10,32 @@
 #include "smarthome_conf.h"
 #include "gmmp.h"
 #include "omp.h"
+#include "timeout.h"
 
 extern system_context_t* sys_context;
 
+typedef enum {
+    TIMEOUT_GENERAL,
+    TIMEOUT_HEARTBEAT,
+    TIMEOUT_DELIVERY,
+    TIMEOUT_MAX
+} timeout_type_t;
+
 typedef struct
 {
-    int content_cycle;
+    int report_period;
+    int heartbeat_period;
     fill_json fill_json;
 
 } omp_state_t;
 
 static omp_state_t omp_state = {
-    .content_cycle = 600,
+    .report_period = 600,
+    .heartbeat_period = 600,
     .fill_json = NULL
 };
+
+static timeout_t timeout_table[TIMEOUT_MAX];
 
 static OSStatus usergethostbyname( const char * domain, uint8_t * addr, uint8_t addrLen )
 {
@@ -106,66 +118,132 @@ static int connect_gmmp( const char* addr, int port )
     return err;
 }
 
-static bool is_registered_already( void )
+static OSStatus send_gw_register( int sock_fd )
 {
-    smarthome_device_user_conf_t* s_conf = get_user_conf();
-    smarhome_server_info_t* server = &s_conf->server;
-
-    if (server->domain_code[0] && server->auth_key[0] && server->gw_id[0])
-	return true;
-    else
-	return false;
-}
-
-static OSStatus process_register( int sock_fd )
-{
-    OSStatus err = kUnknownErr;
-    void *buf;
-    size_t size;
+    void *buf = NULL;
     int len;
-    gmmp_header_t *hd;
-    gw_reg_resp_t *reg_resp;
-    smarthome_device_user_conf_t* s_conf = get_user_conf();
-    
+    size_t size;
+    OSStatus err = kNoErr;
+
     buf = malloc( MAX_OMP_FRAME );
     require( buf, exit );
-    hd = buf;
-    reg_resp = (gw_reg_resp_t*)&hd[1];
 
-    while (1) {
-	/* register request */
-	size = fill_reg_req( buf );
-	len = write( sock_fd, buf, size );
-	require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send reg_req" );
-
-	size = MAX_OMP_FRAME;
-	err = read_gmmp_frame( sock_fd, buf, &size );
-	require_noerr_string( err, exit, "fail to recv reg_resp" );
-	if (size == 0)
-	    continue;
-
-	require_string( hd->type == GMMP_GW_REG_RESP, exit, "no reg_resp message" );
-	omp_log("Recv GMMP_GW_REG_RESP Packet");
-	omp_log(" size: %u, tid: %lu, result_code: 0x%x", hd->len, hd->tid, reg_resp->result_code);
-
-	if (reg_resp->result_code == 0)
-	    break;
-
-	mico_thread_msleep(2000);
-    }
-    
-    /* fill auth_key and gw id */
-    mico_rtos_lock_mutex( &sys_context->flashContentInRam_mutex );
-    memset( s_conf->server.auth_key, 0, sizeof(s_conf->server.auth_key) );
-    memset( s_conf->server.gw_id, 0, sizeof(s_conf->server.gw_id) );
-    memcpy( s_conf->server.auth_key, hd->auth_key, sizeof(hd->auth_key) );
-    memcpy( s_conf->server.gw_id, reg_resp->gw_id, sizeof(reg_resp->gw_id) );
-    mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
-    err = mico_system_context_update(mico_system_context_get());
-    check_string(err == kNoErr, "Fail to update conf to Flash memory");
+    size = fill_gw_reg_req( buf );
+    len = write( sock_fd, buf, size );
+    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_GW_REG_REQ" );
 
   exit:
-    free( buf );
+    if ( buf )
+	free( buf );
+    return err;
+}
+
+static OSStatus send_dev_register( int sock_fd )
+{
+    void *buf = NULL;
+    int len;
+    size_t size;
+    OSStatus err = kNoErr;
+
+    buf = malloc( MAX_OMP_FRAME );
+    require( buf, exit );
+
+    size = fill_dev_reg_req( buf );
+    len = write( sock_fd, buf, size );
+    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_DEV_REG_REQ" );
+
+  exit:
+    if ( buf )
+	free( buf );
+    return err;
+}
+
+static OSStatus send_profile_req( int sock_fd )
+{
+    void *buf = NULL;
+    int len;
+    size_t size;
+    OSStatus err = kNoErr;
+
+    buf = malloc( MAX_OMP_FRAME );
+    require( buf, exit );
+
+    size = fill_profile_req( buf );
+    len = write( sock_fd, buf, size );
+    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_PROFILE_REQ" );
+
+  exit:
+    if ( buf )
+	free( buf );
+    return err;
+}
+
+static OSStatus send_heaertbeat( int sock_fd )
+{
+    void *buf = NULL;
+    int len;
+    size_t size;
+    OSStatus err = kNoErr;
+
+    buf = malloc( MAX_OMP_FRAME );
+    require( buf, exit );
+
+    size = fill_heartbeat_req( buf );
+    len = write( sock_fd, buf, size );
+    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_HEARTBEAT_REQ" );
+
+  exit:
+    if ( buf )
+	free( buf );
+    return err;
+}
+
+static OSStatus send_periodic_report( int sock_fd )
+{
+    OSStatus err = kNoErr;
+    json_object* report = NULL;
+    json_object* msg = NULL;
+    const char * msg_str;
+    const char * report_str;
+    int report_size;
+    int len;
+    size_t size;
+    void *buf = NULL;
+
+    buf = malloc( MAX_OMP_FRAME );
+    require( buf, exit );
+
+    omp_log("Prepare periodic report");
+    report = json_object_new_object();
+    msg = json_object_new_object();
+    require( report && msg, exit );
+
+    omp_state.fill_json( msg );
+
+    msg_str = json_object_to_json_string( msg );
+    omp_log("%s", msg_str);
+    require_action( msg_str, exit, err = kNoMemoryErr );
+
+    json_object_object_add(report, "content_type", json_object_new_string("periodic_data"));
+    json_object_object_add(report, "content_value", json_object_new_string(msg_str));
+    report_str = json_object_to_json_string( report );
+    report_size = strlen( report_str );
+    omp_log("%s", report_str);
+
+    size = fill_ctrl_noti( buf, OMP_NOTIFY, report_size );
+    len = write( sock_fd, buf, size );
+    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
+    len = write( sock_fd, report_str, report_size );
+    require_action( len > 0 && len == report_size, exit, err = kWriteErr );
+
+  exit:
+    if ( buf )
+	free( buf );
+    if ( report )
+	json_object_put(report);
+    if ( msg )
+	json_object_put(msg);
+
     return err;
 }
 
@@ -249,8 +327,64 @@ static OSStatus process_recv_message( int sock_fd )
     
     switch ( hd->type ) {
     case GMMP_GW_REG_RESP: {
+	bool update = false;
 	gw_reg_resp_t *body = (gw_reg_resp_t*)&hd[1];
+	smarthome_device_user_conf_t* s_conf = get_user_conf();
 	omp_log("Recv GMMP_GW_REG_RESP: result=0x%x", body->result_code);
+
+	mico_rtos_lock_mutex( &sys_context->flashContentInRam_mutex );
+	if ( memcmp( s_conf->server.auth_key, hd->auth_key, sizeof(hd->auth_key)) != 0 ) {
+	    update = true;
+	    memset( s_conf->server.auth_key, 0, sizeof(s_conf->server.auth_key) );
+	    memcpy( s_conf->server.auth_key, hd->auth_key, sizeof(hd->auth_key) );
+	}
+	if ( memcmp(s_conf->server.gw_id, body->gw_id, sizeof(body->gw_id)) != 0 ) {
+	    update = true;
+	    memset( s_conf->server.gw_id, 0, sizeof(s_conf->server.gw_id) );
+	    memcpy( s_conf->server.gw_id, body->gw_id, sizeof(body->gw_id) );
+	}
+	mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
+	if (update) {
+	    err = mico_system_context_update(mico_system_context_get());
+	    check_string(err == kNoErr, "Fail to update conf to Flash memory");
+	}
+
+	err = send_profile_req( sock_fd );
+	require_noerr( err, exit );
+	break;
+    }
+    case GMMP_PROFILE_RESP: {
+	profile_resp_t *body = (profile_resp_t*)&hd[1];
+	body->heartbeat_period = ntohl(body->heartbeat_period);
+	body->report_period = ntohl(body->report_period);
+	omp_log("Recv GMMP_PROFILE_RESP: hearteat=%lu, report=%lu", body->heartbeat_period, body->report_period);
+	omp_state.report_period = body->report_period * 60;
+	omp_state.heartbeat_period = body->heartbeat_period * 60;
+
+	timeout_enable(TIMEOUT_HEARTBEAT, omp_state.report_period);
+	timeout_enable(TIMEOUT_DELIVERY, omp_state.report_period);
+
+	err = send_dev_register( sock_fd );
+	require_noerr( err, exit );
+	break;
+    }
+    case GMMP_DEV_REG_RESP: {
+	bool update = false;
+	dev_reg_resp_t *body = (dev_reg_resp_t*)&hd[1];
+	smarthome_device_user_conf_t* s_conf = get_user_conf();
+	omp_log("Recv GMMP_DEV_REG_RESP: result=0x%x", body->result_code);
+	
+	mico_rtos_lock_mutex( &sys_context->flashContentInRam_mutex );
+	if ( memcmp(s_conf->server.dev_id, body->device_id, sizeof(body->device_id)) != 0 ) {
+	    update = true;
+	    memset( s_conf->server.dev_id, 0, sizeof(s_conf->server.dev_id) );
+	    memcpy( s_conf->server.dev_id, body->device_id, sizeof(body->device_id) );
+	}
+	mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
+	if (update) {
+	    err = mico_system_context_update(mico_system_context_get());
+	    check_string(err == kNoErr, "Fail to update conf to Flash memory");
+	}
 	break;
     }
     case GMMP_GW_DEREG_RESP: {
@@ -305,114 +439,26 @@ static OSStatus process_recv_message( int sock_fd )
     
 }
 
-static OSStatus send_heaertbeat( int sock_fd )
-{
-    void *buf = NULL;
-    int len;
-    size_t size;
-    OSStatus err = kNoErr;
-
-    buf = malloc( MAX_OMP_FRAME );
-    require( buf, exit );
-
-    size = fill_heartbeat_req( buf );
-    len = write( sock_fd, buf, size );
-    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_HEARTBEAT_REQ" );
-
-  exit:
-    if ( buf )
-	free( buf );
-    return err;
-}
-
-static OSStatus send_periodic_report( int sock_fd )
-{
-    OSStatus err = kNoErr;
-    json_object* report = NULL;
-    json_object* msg = NULL;
-    const char * msg_str;
-    const char * report_str;
-    int report_size;
-    int len;
-    size_t size;
-    void *buf = NULL;
-
-    buf = malloc( MAX_OMP_FRAME );
-    require( buf, exit );
-
-    omp_log("Prepare periodic report");
-    report = json_object_new_object();
-    msg = json_object_new_object();
-    require( report && msg, exit );
-
-    omp_state.fill_json( msg );
-
-    msg_str = json_object_to_json_string( msg );
-    omp_log("%s", msg_str);
-    require_action( msg_str, exit, err = kNoMemoryErr );
-
-    json_object_object_add(report, "content_type", json_object_new_string("periodic_data"));
-    json_object_object_add(report, "content_value", json_object_new_string(msg_str));
-    report_str = json_object_to_json_string( report );
-    report_size = strlen( report_str );
-    omp_log("%s", report_str);
-
-    size = fill_ctrl_noti( buf, OMP_NOTIFY, report_size );
-    len = write( sock_fd, buf, size );
-    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
-    len = write( sock_fd, report_str, report_size );
-    require_action( len > 0 && len == report_size, exit, err = kWriteErr );
-
-  exit:
-    if ( buf )
-	free( buf );
-    if ( report )
-	json_object_put(report);
-    if ( msg )
-	json_object_put(msg);
-
-    return err;
-}
-
 static void omp_thread( mico_thread_arg_t arg )
 {
+    int id;
     int sock_fd;
     fd_set readfds;
     struct timeval t;
     OSStatus err = kUnknownErr;
     smarthome_device_user_conf_t* s_conf = get_user_conf();
-    time_t heartbeat_time = 0;
-    time_t periodic_data_time = 0;
+
+    timeout_init(timeout_table, TIMEOUT_MAX);
 
     while ( 1 ) {
 	sock_fd = connect_gmmp( s_conf->server.ip, s_conf->server.port );
 	require( sock_fd > 0, retry );
 
-	if ( ! is_registered_already() ) {
-	    err = process_register( sock_fd );
-	    require_noerr(err, retry);
-	}
-
-	heartbeat_time = 0;
-	periodic_data_time = 0;
+	timeout_disable_all();
+	send_gw_register( sock_fd );
 
 	while (1) {
-	    int diff, diff_periodic;
-	    int diff_heartbeat = time(NULL) - heartbeat_time;
-	    if (diff_heartbeat >= HEARTBEAT_INTERVAL || heartbeat_time == 0) {
-		err = send_heaertbeat( sock_fd );
-		require_noerr(err, retry);
-		heartbeat_time = time(NULL);
-	    }
-	    diff_periodic = time(NULL) - periodic_data_time;
-	    if (diff_periodic >= omp_state.content_cycle || periodic_data_time == 0) {
-		err = send_periodic_report( sock_fd );
-		require_noerr(err, retry);
-		periodic_data_time = time(NULL);
-	    }
-
-	    diff = Min(HEARTBEAT_INTERVAL - diff_heartbeat, omp_state.content_cycle - diff_periodic);
-	    t.tv_sec = diff;
+	    t.tv_sec = timeout_next_timeout();
 	    t.tv_usec = 0;
 	    FD_ZERO(&readfds);
 	    FD_SET(sock_fd, &readfds);
@@ -422,6 +468,23 @@ static void omp_thread( mico_thread_arg_t arg )
 		err = process_recv_message( sock_fd );
 		require_noerr(err, retry);
 	    }
+
+	    id = timeout_get();
+	    switch (id) {
+	    case TIMEOUT_GENERAL:
+		break;
+	    case TIMEOUT_HEARTBEAT:
+		err = send_heaertbeat( sock_fd );
+		require_noerr_string(err, retry, "Fail to send Heartbeat");
+		break;
+	    case TIMEOUT_DELIVERY:
+		err = send_periodic_report( sock_fd );
+		require_noerr_string(err, retry, "Fail to send Delivery");
+		break;
+	    default:
+		break;
+	    }
+	    
 	}
       retry:
 	close( sock_fd );

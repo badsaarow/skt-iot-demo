@@ -20,6 +20,14 @@ static const char* get_type_name(int type)
     case GMMP_GW_REG_RESP: return "GMMP_GW_REG_RESP";
     case GMMP_GW_DEREG_REQ: return "GMMP_GW_DEREG_REQ";
     case GMMP_GW_DEREG_RESP: return "GMMP_GW_DEREG_RESP";
+    case GMMP_PROFILE_REQ: return "GMMP_PROFILE_REQ";
+    case GMMP_PROFILE_RESP: return "GMMP_PROFILE_RESP";
+    case GMMP_DEV_REG_REQ: return "GMMP_DEV_REG_REQ";
+    case GMMP_DEV_REG_RESP: return "GMMP_DEV_REG_RESP";
+    case GMMP_DEV_DEREG_REQ: return "GMMP_DEV_DEREG_REQ";
+    case GMMP_DEV_DEREG_RESP: return "GMMP_DEV_DEREG_RESP";
+    case GMMP_DELIVERY_REQ: return "GMMP_DELIVERY_REQ";
+    case GMMP_DELIVERY_RESP: return "GMMP_DELIVERY_RESP";
     case GMMP_CTRL_REQ: return "GMMP_CTRL_REQ";
     case GMMP_CTRL_RESP: return "GMMP_CTRL_RESP";
     case GMMP_HEARTBEAT_REQ: return "GMMP_HEARTBEAT_REQ";
@@ -109,7 +117,7 @@ static void fill_gmmp_hd( gmmp_header_t* hd, gmmp_type_t type, size_t total_size
     omp_log("  size: %u, tid: %lu", total_size, tid);
 }
 
-size_t fill_reg_req( void* buf )
+size_t fill_gw_reg_req( void* buf )
 {
     size_t size;
     gmmp_header_t *hd = buf;
@@ -119,6 +127,23 @@ size_t fill_reg_req( void* buf )
     size = sizeof(*hd) + sizeof(*body);
     fill_gmmp_hd( hd, GMMP_GW_REG_REQ, size, 0);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
+    memcpy(body->manufacture_id, conf->dev_info.device_mf_id, sizeof(body->manufacture_id));
+
+    hton_gmmp_hd(hd);
+    return size;
+}
+
+size_t fill_dev_reg_req( void* buf )
+{
+    size_t size;
+    gmmp_header_t *hd = buf;
+    dev_reg_req_t *body = (dev_reg_req_t*)&hd[1];
+    smarthome_device_user_conf_t *conf = get_user_conf();
+
+    size = sizeof(*hd) + sizeof(*body);
+    fill_gmmp_hd( hd, GMMP_DEV_REG_REQ, size, 0);
+    memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
+    memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
     memcpy(body->manufacture_id, conf->dev_info.device_mf_id, sizeof(body->manufacture_id));
 
     hton_gmmp_hd(hd);
@@ -137,6 +162,23 @@ size_t fill_heartbeat_req( void* buf )
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
 
+    hton_gmmp_hd(hd);
+    return size;
+}
+
+size_t fill_profile_req( void* buf )
+{
+    size_t size;
+    gmmp_header_t *hd = buf;
+    profile_req_t *body = (profile_req_t*)&hd[1];
+    smarthome_device_user_conf_t *conf = get_user_conf();
+
+    size = sizeof(*hd) + sizeof(*body);
+    fill_gmmp_hd( hd, GMMP_PROFILE_REQ, size, 0);
+    memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
+    memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
+    memset(body->device_id, 0, sizeof(body->device_id)); /* no device id */
+    
     hton_gmmp_hd(hd);
     return size;
 }

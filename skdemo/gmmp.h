@@ -172,7 +172,9 @@ typedef profile_req_t dev_dereg_req_t;
 typedef dev_reg_resp_t dev_dereg_resp_t;
 
 OSStatus read_gmmp_frame( int fd, void *buf, size_t *size );
-size_t fill_reg_req( void* buf );
+size_t fill_gw_reg_req( void* buf );
+size_t fill_dev_reg_req( void* buf );
 size_t fill_heartbeat_req( void* buf );
+size_t fill_profile_req( void* buf );
 size_t fill_ctrl_resp( void* buf, gmmp_header_t *req);
 size_t fill_ctrl_noti( void* buf, int control_type, int json_size );
