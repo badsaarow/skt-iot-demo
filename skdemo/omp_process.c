@@ -361,7 +361,7 @@ static OSStatus process_recv_message( int sock_fd )
 	omp_state.report_period = body->report_period * 60;
 	omp_state.heartbeat_period = body->heartbeat_period * 60;
 
-	timeout_enable(TIMEOUT_HEARTBEAT, omp_state.report_period);
+	timeout_enable(TIMEOUT_HEARTBEAT, omp_state.heartbeat_period);
 	timeout_enable(TIMEOUT_DELIVERY, omp_state.report_period);
 
 	err = send_dev_register( sock_fd );
