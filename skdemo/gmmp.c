@@ -11,7 +11,7 @@
 
 #define GMMP_VERSION 0x21
 
-static uint32_t next_tid;
+static uint32_t cur_tid;
 
 static const char* get_type_name(int type)
 {
@@ -100,7 +100,7 @@ static void fill_gmmp_hd( gmmp_header_t* hd, gmmp_type_t type, size_t total_size
     memcpy(hd->auth_id, conf->dev_info.device_sn, sizeof(hd->auth_id));
     memcpy(hd->auth_key, conf->server.auth_key, sizeof(hd->auth_key));
     if (tid == 0)
-	tid = next_tid++;
+	tid = ++cur_tid;
     hd->tid = tid;
     hd->encrypted = 0;
     hd->reserved = 0;
