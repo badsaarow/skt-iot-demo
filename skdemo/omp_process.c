@@ -331,6 +331,7 @@ static OSStatus process_recv_message( int sock_fd )
 	gw_reg_resp_t *body = (gw_reg_resp_t*)&hd[1];
 	smarthome_device_user_conf_t* s_conf = get_user_conf();
 	omp_log("Recv GMMP_GW_REG_RESP: result=0x%x", body->result_code);
+	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
 
 	mico_rtos_lock_mutex( &sys_context->flashContentInRam_mutex );
 	if ( memcmp( s_conf->server.auth_key, hd->auth_key, sizeof(hd->auth_key)) != 0 ) {
@@ -373,6 +374,7 @@ static OSStatus process_recv_message( int sock_fd )
 	dev_reg_resp_t *body = (dev_reg_resp_t*)&hd[1];
 	smarthome_device_user_conf_t* s_conf = get_user_conf();
 	omp_log("Recv GMMP_DEV_REG_RESP: result=0x%x", body->result_code);
+	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
 	
 	mico_rtos_lock_mutex( &sys_context->flashContentInRam_mutex );
 	if ( memcmp(s_conf->server.dev_id, body->device_id, sizeof(body->device_id)) != 0 ) {
@@ -403,22 +405,26 @@ static OSStatus process_recv_message( int sock_fd )
 	delivery_resp_t *body = (delivery_resp_t*)&hd[1];
 	body->backoff_time = ntohl(body->backoff_time);
 	omp_log("Recv GMMP_DELIVERY_RESP: result=0x%x, backoff time=0x%lx", body->result_code, body->backoff_time);
+	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
 	break;
 
     }
     case GMMP_CTRL_NOTI_RESP: {
 	ctrl_noti_resp_t *body = (ctrl_noti_resp_t*)&hd[1];
 	omp_log("Recv GMMP_CTRL_NOTI_RESP: result=0x%x, control type=0x%x", body->result_code, body->control_type);
+	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
 	break;
     }
     case GMMP_ENC_INFO_RESP: {
 	enc_info_resp_t *body = (enc_info_resp_t*)&hd[1];
 	omp_log("Recv GMMP_ENC_INFO_RESP: result=0x%x", body->result_code);
+	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
 	break;
     }
     case GMMP_SET_ENC_KEY_RESP: {
 	set_enc_key_resp_t *body = (set_enc_key_resp_t*)&hd[1];
 	omp_log("Recv GMMP_SET_ENC_KEY_RESP: result=0x%x", body->result_code);
+	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
 	break;
     }
     case  GMMP_CTRL_REQ: {
