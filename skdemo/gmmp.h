@@ -37,6 +37,12 @@ typedef enum {
     GMMP_SET_ENC_KEY_RESP	= 0x1c
 } gmmp_type_t;
 
+typedef enum {
+    REPORT_COLLECT_DATA = 1,
+    REPORT_ALARM_DATA = 2,
+    REPORT_EVENT_DATA = 3,
+    REPORT_ALARM_CLEAR = 4
+} gmmp_report_type_t;
 
 typedef struct {
     uint8_t ver;		/* GMMP Versino */
@@ -102,7 +108,7 @@ typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
     char device_id[LEN_DEVICE_ID];
-    uint8_t report_time;
+    uint8_t report_type;
     uint8_t media_type;
 } __attribute__((packed)) delivery_req_t;
 
@@ -111,7 +117,7 @@ typedef struct {
     char gw_id[LEN_GW_ID];
     char device_id[LEN_DEVICE_ID];
     uint8_t result_code;
-    uint32_t backoof_time;
+    uint32_t backoff_time;
 } __attribute__((packed)) delivery_resp_t;
 
 typedef struct {
@@ -177,4 +183,5 @@ size_t fill_dev_reg_req( void* buf );
 size_t fill_heartbeat_req( void* buf );
 size_t fill_profile_req( void* buf );
 size_t fill_ctrl_resp( void* buf, gmmp_header_t *req);
+size_t fill_delivery_req( void* buf, gmmp_report_type_t report_type, int json_size );
 size_t fill_ctrl_noti( void* buf, int control_type, int json_size );

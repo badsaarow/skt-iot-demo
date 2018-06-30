@@ -206,6 +206,25 @@ size_t fill_ctrl_resp( void* buf, gmmp_header_t *req)
     return size;
 }
 
+size_t fill_delivery_req( void* buf, gmmp_report_type_t report_type, int json_size )
+{
+    size_t size;
+    gmmp_header_t *hd = buf;
+    delivery_req_t *body = (delivery_req_t*)&hd[1];
+    smarthome_device_user_conf_t *conf = get_user_conf();
+
+    size = sizeof(*hd) + sizeof(*body);
+    fill_gmmp_hd( hd, GMMP_DELIVERY_REQ, size + json_size, 0);
+    memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
+    memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
+    memset(body->device_id, 0, sizeof(body->device_id));
+    body->report_type = report_type;
+    body->media_type = MEDIA_TYPE_APPLICATION_JSON;
+
+    hton_gmmp_hd(hd);
+    return size;
+}
+
 size_t fill_ctrl_noti( void* buf, int control_type, int json_size )
 {
     size_t size;

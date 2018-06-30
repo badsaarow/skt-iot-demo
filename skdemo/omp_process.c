@@ -230,7 +230,7 @@ static OSStatus send_periodic_report( int sock_fd )
     report_size = strlen( report_str );
     omp_log("%s", report_str);
 
-    size = fill_ctrl_noti( buf, OMP_NOTIFY, report_size );
+    size = fill_delivery_req( buf, REPORT_COLLECT_DATA, report_size );
     len = write( sock_fd, buf, size );
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
     len = write( sock_fd, report_str, report_size );
@@ -385,6 +385,9 @@ static OSStatus process_recv_message( int sock_fd )
 	    err = mico_system_context_update(mico_system_context_get());
 	    check_string(err == kNoErr, "Fail to update conf to Flash memory");
 	}
+
+	/* force to trigger send delivery message */
+	timeout_enable( TIMEOUT_DELIVERY, 3 );
 	break;
     }
     case GMMP_GW_DEREG_RESP: {
@@ -395,7 +398,14 @@ static OSStatus process_recv_message( int sock_fd )
     case GMMP_HEARTBEAT_RESP: {
 	omp_log("Recv GMMP_HEARTBEAT_RESP");
 	break;
-    }	
+    }
+    case GMMP_DELIVERY_RESP: {
+	delivery_resp_t *body = (delivery_resp_t*)&hd[1];
+	body->backoff_time = ntohl(body->backoff_time);
+	omp_log("Recv GMMP_DELIVERY_RESP: result=0x%x, backoff time=0x%x", body->result_code, body->backoff_time);
+	break;
+
+    }
     case GMMP_CTRL_NOTI_RESP: {
 	ctrl_noti_resp_t *body = (ctrl_noti_resp_t*)&hd[1];
 	omp_log("Recv GMMP_CTRL_NOTI_RESP: result=0x%x, control type=0x%x", body->result_code, body->control_type);
@@ -476,10 +486,12 @@ static void omp_thread( mico_thread_arg_t arg )
 	    case TIMEOUT_HEARTBEAT:
 		err = send_heaertbeat( sock_fd );
 		require_noerr_string(err, retry, "Fail to send Heartbeat");
+		timeout_enable( TIMEOUT_HEARTBEAT, omp_state.heartbeat_period );
 		break;
 	    case TIMEOUT_DELIVERY:
 		err = send_periodic_report( sock_fd );
 		require_noerr_string(err, retry, "Fail to send Delivery");
+		timeout_enable( TIMEOUT_DELIVERY, omp_state.report_period );
 		break;
 	    default:
 		break;
