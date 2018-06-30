@@ -93,9 +93,9 @@ typedef struct {
     uint32_t report_offset;
     uint32_t response_timeout;
     char model[32];
-    uint16_t firmware_version;
-    uint16_t software_version;
-    uint16_t hardware_version;
+    char firmware_version[16];
+    char software_version[16];
+    char hardware_version[16];
 } __attribute__((packed)) profile_resp_t;
 
 typedef struct {
