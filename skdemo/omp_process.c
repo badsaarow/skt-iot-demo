@@ -275,6 +275,9 @@ static OSStatus process_omp_init( int sock_fd, json_object *msg, void *buf )
     len = write( sock_fd, json_str, json_size );
     require_action( len > 0 && len == json_size, exit, err = kWriteErr );
 
+    /* force to trigger send delivery message */
+    timeout_enable( TIMEOUT_DELIVERY, 0 );
+    
   exit:
     if(report)
 	json_object_put(report);
@@ -365,8 +368,11 @@ static OSStatus process_recv_message( int sock_fd )
 	timeout_enable(TIMEOUT_HEARTBEAT, omp_state.heartbeat_period);
 	timeout_enable(TIMEOUT_DELIVERY, omp_state.report_period);
 
-	err = send_dev_register( sock_fd );
-	require_noerr( err, exit );
+	/* NOTE: seems unnessary */
+	if (0) {
+	    err = send_dev_register( sock_fd );
+	    require_noerr( err, exit );
+	}
 	break;
     }
     case GMMP_DEV_REG_RESP: {
