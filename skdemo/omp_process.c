@@ -402,7 +402,7 @@ static OSStatus process_recv_message( int sock_fd )
     case GMMP_DELIVERY_RESP: {
 	delivery_resp_t *body = (delivery_resp_t*)&hd[1];
 	body->backoff_time = ntohl(body->backoff_time);
-	omp_log("Recv GMMP_DELIVERY_RESP: result=0x%x, backoff time=0x%x", body->result_code, body->backoff_time);
+	omp_log("Recv GMMP_DELIVERY_RESP: result=0x%x, backoff time=0x%lx", body->result_code, body->backoff_time);
 	break;
 
     }
