@@ -144,12 +144,6 @@ typedef struct {
     char domain_code[LEN_DOMAIN_CODE];
     char gw_id[LEN_GW_ID];
     char device_id[LEN_DEVICE_ID];
-} __attribute__((packed)) enc_info_req_t;
-
-typedef struct {
-    char domain_code[LEN_DOMAIN_CODE];
-    char gw_id[LEN_GW_ID];
-    char device_id[LEN_DEVICE_ID];
     uint8_t result_code;
     uint8_t enc_flag;
     uint8_t enc_algorithm;
@@ -162,20 +156,15 @@ typedef struct {
     char enc_key[LEN_AES_KEY];
 } __attribute__((packed)) set_enc_key_req_t;
 
-typedef struct {
-    char domain_code[LEN_DOMAIN_CODE];
-    char gw_id[LEN_GW_ID];
-    char device_id[LEN_DEVICE_ID];
-    uint8_t result_code;
-} __attribute__((packed)) set_enc_key_resp_t;
-
 typedef gw_reg_req_t gw_dereg_req_t;
 typedef gw_reg_resp_t gw_dereg_resp_t;
 typedef ctrl_resp_t ctrl_noti_t;
 typedef ctrl_resp_t  ctrl_noti_resp_t;
 typedef heartbeat_req_t heartbeat_resp_t;
 typedef profile_req_t dev_dereg_req_t;
+typedef profile_req_t enc_info_req_t;
 typedef dev_reg_resp_t dev_dereg_resp_t;
+typedef dev_reg_resp_t set_enc_key_resp_t;
 
 OSStatus read_gmmp_frame( int fd, void *buf, size_t *size );
 size_t fill_gw_reg_req( void* buf );
