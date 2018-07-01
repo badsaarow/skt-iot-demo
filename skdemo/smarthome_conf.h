@@ -14,6 +14,7 @@
   #define omp_log_trace()
 #endif
 
+#define DEBUG_MESSAGE
 
 #define LEN_MANUFACTURE_ID	16
 #define LEN_DEVICE_TYPE		32

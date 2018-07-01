@@ -43,6 +43,169 @@ static const char* get_type_name(int type)
     }
 }
 
+#define LOG_STR(_base, _name)		\
+    memcpy(buf, _base->_name, sizeof(_base->_name));\
+    buf[sizeof(_base->_name)] = '\0';		    \
+    omp_log("  %-13s: %s", #_name, buf)
+
+static void dump_gmmp( gmmp_header_t* hd )
+{
+#ifdef DEBUG_MESSAGE
+    char buf[40];
+    omp_log(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+    omp_log("%s", get_type_name(hd->type));
+    omp_log("  ver          : 0x%x", hd->ver);
+    omp_log("  len          : %d", hd->len);
+    omp_log("  type         : 0x%x", hd->type);
+    omp_log("  timestamp    : 0x%lx", hd->timestamp);
+    omp_log("  total_count  : %d", hd->total_count);
+    omp_log("  current_count: %d", hd->current_count);
+    LOG_STR(hd, auth_id);
+    LOG_STR(hd, auth_key);
+    omp_log("  tid          : 0x%lx", hd->tid);
+    omp_log("  encrypted    : %d", hd->encrypted);
+    omp_log("  reserved     : %d", hd->reserved);
+
+    omp_log("----------------------------------------");
+    
+    switch( hd->type ) {
+    case GMMP_GW_REG_REQ:
+    case GMMP_GW_DEREG_REQ:
+    {
+	gw_reg_req_t* body = (gw_reg_req_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, manufacture_id);
+	break;
+    }
+    case GMMP_GW_REG_RESP:
+    case GMMP_GW_DEREG_RESP:
+    {
+	gw_reg_resp_t* body = (gw_reg_resp_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, gw_id);
+	omp_log("  result_code  : 0x%x", body->result_code);
+	break;
+    }
+    case GMMP_PROFILE_REQ:
+    case GMMP_ENC_INFO_REQ:
+    {
+	profile_req_t* body = (profile_req_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, gw_id);
+	LOG_STR(body, device_id);
+	break;
+    }
+    case GMMP_DEV_DEREG_REQ:
+    case GMMP_PROFILE_RESP:
+    {
+	profile_resp_t* body = (profile_resp_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, gw_id);
+	LOG_STR(body, device_id);
+	omp_log("  result_code  : 0x%x", body->result_code);
+	omp_log("  heartbeat_period: %lu", body->heartbeat_period);
+	omp_log("  report_period: %lu", body->report_period);
+	omp_log("  report_offset: %lu", body->report_offset);
+	omp_log("  response_timeout: %lu", body->response_timeout);
+	LOG_STR(body, model);
+	LOG_STR(body, firmware_version);
+	LOG_STR(body, software_version);
+	LOG_STR(body, hardware_version);
+	break;
+    }
+    case GMMP_DEV_REG_REQ:
+    {
+	dev_reg_req_t* body = (dev_reg_req_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, gw_id);
+	LOG_STR(body, manufacture_id);
+	break;
+    }
+    case GMMP_DEV_DEREG_RESP:
+    case GMMP_DEV_REG_RESP:
+    case GMMP_SET_ENC_KEY_RESP:
+    {
+	dev_reg_resp_t* body = (dev_reg_resp_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, gw_id);
+	LOG_STR(body, device_id);
+	omp_log("  result_code  : 0x%x", body->result_code);
+	break;
+    }
+    case GMMP_DELIVERY_REQ:
+    {
+	delivery_req_t* body = (delivery_req_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, gw_id);
+	LOG_STR(body, device_id);
+	omp_log("  report_type  : 0x%x", body->report_type);
+	omp_log("  media_type   : 0x%x", body->media_type);
+	break;
+    }
+    case GMMP_DELIVERY_RESP:
+    {
+	delivery_resp_t* body = (delivery_resp_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, gw_id);
+	LOG_STR(body, device_id);
+	omp_log("  result_code  : 0x%x", body->result_code);
+	omp_log("  backoff_time : %lu", body->backoff_time);
+	break;
+    }
+    case GMMP_CTRL_REQ:
+    {
+	ctrl_req_t* body = (ctrl_req_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, gw_id);
+	LOG_STR(body, device_id);
+	omp_log("  control_type : 0x%x", body->control_type);
+	break;
+    }
+    case GMMP_CTRL_RESP:
+    case GMMP_CTRL_NOTI:
+    case GMMP_CTRL_NOTI_RESP:
+    {
+	ctrl_resp_t* body = (ctrl_resp_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, gw_id);
+	LOG_STR(body, device_id);
+	omp_log("  control_type : 0x%x", body->control_type);
+	omp_log("  result_code  : 0x%x", body->result_code);
+	break;
+    }
+    case GMMP_HEARTBEAT_REQ:
+    case GMMP_HEARTBEAT_RESP:
+    {
+	heartbeat_req_t* body = (heartbeat_req_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, gw_id);
+	break;
+    }
+    case GMMP_ENC_INFO_RESP:
+    {
+	enc_info_resp_t* body = (enc_info_resp_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, gw_id);
+	LOG_STR(body, device_id);
+	omp_log("  result_code  : 0x%x", body->result_code);
+	omp_log("  enc_flag     : 0x%x", body->enc_flag);
+	omp_log("  enc_algorithm: 0x%x", body->enc_algorithm);
+	break;
+    }
+    case GMMP_SET_ENC_KEY_REQ:
+    {
+	set_enc_key_req_t* body = (set_enc_key_req_t*)&hd[1];
+	LOG_STR(body, domain_code);
+	LOG_STR(body, gw_id);
+	LOG_STR(body, device_id);
+	LOG_STR(body, enc_key);
+	break;
+    }
+    }
+    omp_log("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+#endif
+}
+
 static void ntoh_gmmp_hd(gmmp_header_t* hd)
 {
     hd->len = ntohs(hd->len);
@@ -90,6 +253,26 @@ OSStatus read_gmmp_frame( int fd, void *buf, size_t *size )
     }
 
     ntoh_gmmp_hd(hd);
+
+    switch ( hd->type ) {
+    case GMMP_PROFILE_RESP: {
+	    profile_resp_t *body = (profile_resp_t*)&hd[1];
+	    body->heartbeat_period = ntohl(body->heartbeat_period);
+	    body->report_period = ntohl(body->report_period);
+	    body->report_offset = ntohl(body->report_offset);
+	    body->response_timeout = ntohl(body->response_timeout);
+	    break;
+    }
+    case GMMP_DELIVERY_RESP: {
+	    delivery_resp_t *body = (delivery_resp_t*)&hd[1];
+	    body->backoff_time = ntohl(body->backoff_time);
+	    break;
+    }
+    default:
+	    break;
+    }
+    
+    dump_gmmp(hd);
     *size = tot;
     return kNoErr;
   exit:
@@ -128,6 +311,7 @@ size_t fill_gw_reg_req( void* buf )
     fill_gmmp_hd( hd, GMMP_GW_REG_REQ, size, 0);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->manufacture_id, conf->dev_info.device_mf_id, sizeof(body->manufacture_id));
+    dump_gmmp(hd);
 
     hton_gmmp_hd(hd);
     return size;
@@ -145,6 +329,7 @@ size_t fill_dev_reg_req( void* buf )
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
     memcpy(body->manufacture_id, conf->dev_info.device_mf_id, sizeof(body->manufacture_id));
+    dump_gmmp(hd);
 
     hton_gmmp_hd(hd);
     return size;
@@ -161,6 +346,7 @@ size_t fill_heartbeat_req( void* buf )
     fill_gmmp_hd( hd, GMMP_HEARTBEAT_REQ, size, 0);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
+    dump_gmmp(hd);
 
     hton_gmmp_hd(hd);
     return size;
@@ -178,6 +364,7 @@ size_t fill_profile_req( void* buf )
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id)); /* no device id */
+    dump_gmmp(hd);
     
     hton_gmmp_hd(hd);
     return size;
@@ -202,6 +389,7 @@ size_t fill_ctrl_resp( void* buf, gmmp_header_t *req)
 
     omp_log("Send %s Packet", get_type_name(hd->type));
     omp_log("  size: %u, tid: %lu", size, hd->tid);
+    dump_gmmp(hd);
 
     hton_gmmp_hd(hd);
     return size;
@@ -221,6 +409,7 @@ size_t fill_delivery_req( void* buf, gmmp_report_type_t report_type, int json_si
     memset(body->device_id, 0, sizeof(body->device_id));
     body->report_type = report_type;
     body->media_type = MEDIA_TYPE_APPLICATION_JSON;
+    dump_gmmp(hd);
 
     hton_gmmp_hd(hd);
     return size;
@@ -240,6 +429,7 @@ size_t fill_ctrl_noti( void* buf, int control_type, int json_size )
     memset(body->device_id, 0, sizeof(body->device_id));
     body->control_type = control_type;
     body->result_code = 0;
+    dump_gmmp(hd);
 
     hton_gmmp_hd(hd);
     return size;
