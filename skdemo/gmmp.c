@@ -191,6 +191,7 @@ size_t fill_ctrl_resp( void* buf, gmmp_header_t *req)
     ctrl_req_t *body_req = (ctrl_req_t*)&req[1];
 
     size = sizeof(*hd) + sizeof(*body);
+    *hd = *req;
     hd->type = GMMP_CTRL_RESP;
     hd->len = size;
     hd->total_count = hd->current_count = 1;
@@ -242,4 +243,9 @@ size_t fill_ctrl_noti( void* buf, int control_type, int json_size )
 
     hton_gmmp_hd(hd);
     return size;
+}
+
+void set_tid( uint32_t tid )
+{
+	cur_tid = tid;
 }
