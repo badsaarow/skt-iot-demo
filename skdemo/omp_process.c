@@ -203,7 +203,6 @@ static OSStatus send_periodic_report( int sock_fd )
     OSStatus err = kNoErr;
     json_object* report = NULL;
     json_object* msg = NULL;
-    const char * msg_str;
     const char * report_str;
     int report_size;
     int len;
@@ -220,12 +219,8 @@ static OSStatus send_periodic_report( int sock_fd )
 
     omp_state.fill_json( msg );
 
-    msg_str = json_object_to_json_string( msg );
-    omp_log("%s", msg_str);
-    require_action( msg_str, exit, err = kNoMemoryErr );
-
     json_object_object_add(report, "content_type", json_object_new_string("periodic_data"));
-    json_object_object_add(report, "content_value", json_object_new_string(msg_str));
+    json_object_object_add(report, "content_value", msg);
     report_str = json_object_to_json_string( report );
     report_size = strlen( report_str );
     omp_log("%s", report_str);
