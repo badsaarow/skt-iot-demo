@@ -411,7 +411,7 @@ static OSStatus process_recv_message( int sock_fd )
 	omp_state.report_period = body->report_period * 60;
 	omp_state.heartbeat_period = body->heartbeat_period * 60;
 
-	timeout_enable(TIMEOUT_HEARTBEAT, omp_state.heartbeat_period);
+	timeout_enable(TIMEOUT_HEARTBEAT, 1); /* force to trigger */
 	timeout_enable(TIMEOUT_DELIVERY, omp_state.report_period);
 
 	/* NOTE: seems unnessary */
@@ -439,9 +439,6 @@ static OSStatus process_recv_message( int sock_fd )
 	    err = mico_system_context_update(mico_system_context_get());
 	    check_string(err == kNoErr, "Fail to update conf to Flash memory");
 	}
-
-	/* force to trigger send delivery message */
-	timeout_enable( TIMEOUT_DELIVERY, 3 );
 	break;
     }
     case GMMP_GW_DEREG_RESP: {
@@ -492,8 +489,12 @@ static OSStatus process_recv_message( int sock_fd )
 	size = fill_ctrl_resp( hd_resp, hd );
 	len = write( sock_fd, buf, size );
 	require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to respond GMMP_CTRL_REQ" );
-	
+
 	err = process_control_message( sock_fd, body->control_type, json_data, size, hd_resp );
+	require_noerr(err, exit);
+
+	if (body->control_type == OMP_INIT)
+	    timeout_enable(TIMEOUT_DELIVERY, 2); /* trigger delivery message */
 
 	break;
     }
