@@ -279,6 +279,51 @@ static OSStatus process_omp_init( int sock_fd, json_object *msg, void *buf )
     return err;
 }
 
+static OSStatus process_omp_control( int sock_fd, json_object *msg, void *buf )
+{
+    int len;
+    int json_size;
+    size_t size;
+    json_object* report = NULL;
+    json_object* response = NULL;
+    const char *  json_str;
+    OSStatus err = kNoErr;
+    char cmd_type[20] = "";
+    char cmd_value[20] = "";
+
+    report = json_object_new_object();
+    response = json_object_new_object();
+    json_object_object_foreach( msg, key, val ) {
+	if ( strcmp( key, "command_id" ) == 0 ) {
+	    json_object_object_add(report, "command_id", json_object_new_string(json_object_get_string(val)));
+	} else if ( strcmp( key, "command_type" ) == 0 ) {
+	    strcpy( cmd_type, json_object_get_string(val) );
+	} else if ( strcmp( key, "request_value" ) == 0 ) {
+	    strcpy( cmd_value, json_object_get_string(val) );
+	}
+    }
+
+    json_object_object_add(response, cmd_type, json_object_new_string(cmd_value));
+    json_object_object_add(report, "response_value", response);
+    json_str = json_object_to_json_string(report);
+    omp_log("%s", json_str);
+    require_action( json_str, exit, err = kNoMemoryErr );
+
+    json_size = strlen(json_str);
+    size = fill_ctrl_noti( buf, OMP_CONTROL, json_size );
+    len = write( sock_fd, buf, size );
+    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
+    len = write( sock_fd, json_str, json_size );
+    require_action( len > 0 && len == json_size, exit, err = kWriteErr );
+    
+  exit:
+    if(report)
+	json_object_put(report);
+    if (response)
+	json_object_put(response);
+    return err;
+}
+
 static OSStatus process_control_message( int sock_fd, int control_type, char* str, size_t size, void *buf )
 {
     OSStatus err = kNoErr;
@@ -291,10 +336,14 @@ static OSStatus process_control_message( int sock_fd, int control_type, char* st
     switch (control_type) {
     case OMP_INIT:
 	err = process_omp_init( sock_fd, msg, buf );
+	require_noerr(err, exit);
+	break;
+    case OMP_CONTROL:
+	err = process_omp_control( sock_fd, msg, buf );
+	require_noerr(err, exit);
 	break;
     case OMP_REPORT_INTERVAL:
     case OMP_DEINIT:
-    case OMP_CONTROL:
     default:
 	omp_log("Unknown control type = %d(0x%x)", control_type, control_type);
 	break;
