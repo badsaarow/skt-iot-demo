@@ -90,11 +90,6 @@ static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, 
 	FILL_USER_CONF("model_id", dev_info.device_model_id);
 	FILL_USER_CONF("sn", dev_info.device_sn);
 	FILL_USER_CONF("server", server.ip);
-	if (!processed && !strcasecmp(argv[1], "gw")) {
-	    /* erase only */
-	    memset(conf->server.gw_id, 0, sizeof(conf->server.gw_id));
-	    processed = MICO_TRUE;
-	}
 	if (!processed && !strcasecmp(argv[1], "port")) {
 	    conf->server.port = (ushort)atoi(argv[2]);
 	    processed = MICO_TRUE;
@@ -106,6 +101,12 @@ static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, 
 		sys_context->flashContentInRam.micoSystemConfig.configured = unConfigured;
 	    processed = MICO_TRUE;
 	}
+	if (!processed && !strcasecmp(argv[1], "gw")) {
+	    /* erase only */
+	    memset(conf->server.gw_id, 0, sizeof(conf->server.gw_id));
+	    processed = MICO_TRUE;
+	}
+	FILL_USER_CONF("auth", server.auth_key);
 	mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
 	status = mico_system_context_update(mico_system_context_get());
 	check_string(status == kNoErr, "Fail to update conf to Flash memory");
@@ -114,7 +115,7 @@ static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, 
 
 WRONGCMD:
     cmd_printf("Usage: devinfo\r\n"
-	       "       devinfo mf_id|type|model_id|sn|server|port|config|gw [value]\r\n");
+	       "       devinfo mf_id|type|model_id|sn|server|port|config|gw|auth [value]\r\n");
 }
 
 int smarthome_conf_cli_register( void )
