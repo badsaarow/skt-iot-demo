@@ -308,7 +308,7 @@ static OSStatus process_control_message( int sock_fd, int control_type, char* st
 
 static OSStatus process_recv_message( int sock_fd )
 {
-    void *buf;
+    void *buf = NULL;
     size_t size;
     OSStatus err = kUnknownErr;
     gmmp_header_t *hd, *hd_resp;
@@ -319,8 +319,10 @@ static OSStatus process_recv_message( int sock_fd )
     size = MAX_OMP_FRAME;
     err = read_gmmp_frame( sock_fd, buf, &size );
     require_noerr_string( err, exit, "fail to recv reg_resp" );
-    if (size == 0)
-	return kNoErr;
+    if (size == 0) {
+	err = kNoErr;
+	goto exit;
+    }
     omp_log("Message size: %u", size);
     
     switch ( hd->type ) {
@@ -452,6 +454,8 @@ static OSStatus process_recv_message( int sock_fd )
     }
 
   exit:
+    if (buf)
+	free( buf );
     return err;
     
 }
