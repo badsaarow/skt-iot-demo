@@ -415,7 +415,7 @@ size_t fill_delivery_req( void* buf, gmmp_report_type_t report_type, int json_si
     return size;
 }
 
-size_t fill_ctrl_noti( void* buf, int control_type, int json_size )
+size_t fill_ctrl_noti( void* buf, int control_type, int json_size, uint32_t tid )
 {
     size_t size;
     gmmp_header_t *hd = buf;
@@ -423,7 +423,7 @@ size_t fill_ctrl_noti( void* buf, int control_type, int json_size )
     smarthome_device_user_conf_t *conf = get_user_conf();
 
     size = sizeof(*hd) + sizeof(*body);
-    fill_gmmp_hd( hd, GMMP_CTRL_NOTI, size + json_size, 0);
+    fill_gmmp_hd( hd, GMMP_CTRL_NOTI, size + json_size, tid);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id));

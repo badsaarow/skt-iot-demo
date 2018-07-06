@@ -242,7 +242,7 @@ static OSStatus send_periodic_report( int sock_fd )
     return err;
 }
 
-static OSStatus process_omp_init( int sock_fd, json_object *msg, void *buf )
+static OSStatus process_omp_init( int sock_fd, uint32_t tid, json_object *msg, void *buf )
 {
     int len;
     int json_size;
@@ -264,7 +264,7 @@ static OSStatus process_omp_init( int sock_fd, json_object *msg, void *buf )
     require_action( json_str, exit, err = kNoMemoryErr );
 
     json_size = strlen(json_str);
-    size = fill_ctrl_noti( buf, OMP_INIT, json_size );
+    size = fill_ctrl_noti( buf, OMP_INIT, json_size, tid );
     len = write( sock_fd, buf, size );
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
     len = write( sock_fd, json_str, json_size );
@@ -279,7 +279,7 @@ static OSStatus process_omp_init( int sock_fd, json_object *msg, void *buf )
     return err;
 }
 
-static OSStatus process_omp_control( int sock_fd, json_object *msg, void *buf )
+static OSStatus process_omp_control( int sock_fd, uint32_t tid, json_object *msg, void *buf )
 {
     int len;
     int json_size;
@@ -310,7 +310,7 @@ static OSStatus process_omp_control( int sock_fd, json_object *msg, void *buf )
     require_action( json_str, exit, err = kNoMemoryErr );
 
     json_size = strlen(json_str);
-    size = fill_ctrl_noti( buf, OMP_CONTROL, json_size );
+    size = fill_ctrl_noti( buf, OMP_CONTROL, json_size, tid );
     len = write( sock_fd, buf, size );
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
     len = write( sock_fd, json_str, json_size );
@@ -324,7 +324,7 @@ static OSStatus process_omp_control( int sock_fd, json_object *msg, void *buf )
     return err;
 }
 
-static OSStatus process_control_message( int sock_fd, int control_type, char* str, size_t size, void *buf )
+static OSStatus process_control_message( int sock_fd, uint32_t tid, int control_type, char* str, void *buf )
 {
     OSStatus err = kNoErr;
     json_object *msg = NULL;
@@ -335,11 +335,11 @@ static OSStatus process_control_message( int sock_fd, int control_type, char* st
 
     switch (control_type) {
     case OMP_INIT:
-	err = process_omp_init( sock_fd, msg, buf );
+	err = process_omp_init( sock_fd, tid, msg, buf );
 	require_noerr(err, exit);
 	break;
     case OMP_CONTROL:
-	err = process_omp_control( sock_fd, msg, buf );
+	err = process_omp_control( sock_fd, tid, msg, buf );
 	require_noerr(err, exit);
 	break;
     case OMP_REPORT_INTERVAL:
@@ -490,7 +490,7 @@ static OSStatus process_recv_message( int sock_fd )
 	len = write( sock_fd, hd_resp, size );
 	require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to respond GMMP_CTRL_REQ" );
 
-	err = process_control_message( sock_fd, body->control_type, json_data, size, hd_resp );
+	err = process_control_message( sock_fd, hd->tid, body->control_type, json_data, hd_resp );
 	require_noerr(err, exit);
 
 	if (body->control_type == OMP_INIT)
