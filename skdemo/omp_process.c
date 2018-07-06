@@ -487,7 +487,7 @@ static OSStatus process_recv_message( int sock_fd )
 	/* reply first */
 	hd_resp = (void*)((char*)buf + MAX_OMP_FRAME);
 	size = fill_ctrl_resp( hd_resp, hd );
-	len = write( sock_fd, buf, size );
+	len = write( sock_fd, hd_resp, size );
 	require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to respond GMMP_CTRL_REQ" );
 
 	err = process_control_message( sock_fd, body->control_type, json_data, size, hd_resp );
