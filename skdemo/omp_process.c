@@ -26,14 +26,18 @@ typedef struct
     int report_period;
     int heartbeat_period;
     fill_json fill_json;
-
+    reply_control reply_control;
 } omp_state_t;
 
 static omp_state_t omp_state = {
     .report_period = 600,
     .heartbeat_period = 600,
-    .fill_json = NULL
+    .fill_json = NULL,
+    .reply_control = NULL,
 };
+
+static mico_semaphore_t update_state_sem = NULL;
+static int update_state_fd = 0;
 
 static timeout_t timeout_table[TIMEOUT_MAX];
 
@@ -198,7 +202,7 @@ static OSStatus send_heaertbeat( int sock_fd )
     return err;
 }
 
-static OSStatus send_periodic_report( int sock_fd )
+static OSStatus send_report( int sock_fd, omp_report_type_t rtype )
 {
     OSStatus err = kNoErr;
     json_object* report = NULL;
@@ -208,6 +212,7 @@ static OSStatus send_periodic_report( int sock_fd )
     int len;
     size_t size;
     void *buf = NULL;
+    gmmp_report_type_t hd_rtype;
 
     buf = malloc( MAX_OMP_FRAME );
     require( buf, exit );
@@ -217,15 +222,22 @@ static OSStatus send_periodic_report( int sock_fd )
     msg = json_object_new_object();
     require( report && msg, exit );
 
-    omp_state.fill_json( msg );
+    omp_state.fill_json( msg, rtype );
 
-    json_object_object_add(report, "content_type", json_object_new_string("periodic_data"));
+    if (rtype == OMP_REPORT_PERIODIC) {
+	report_str = "periodic_data";
+	hd_rtype = REPORT_COLLECT_DATA;
+    } else {
+	report_str = "nonperiodic_data";
+	hd_rtype = REPORT_EVENT_DATA;
+    }
+    json_object_object_add(report, "content_type", json_object_new_string(report_str));
     json_object_object_add(report, "content_value", msg);
     report_str = json_object_to_json_string( report );
     report_size = strlen( report_str );
     omp_log("%s", report_str);
 
-    size = fill_delivery_req( buf, REPORT_COLLECT_DATA, report_size );
+    size = fill_delivery_req( buf, REPORT_EVENT_DATA, report_size );
     len = write( sock_fd, buf, size );
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
     len = write( sock_fd, report_str, report_size );
@@ -304,6 +316,7 @@ static OSStatus process_omp_control( int sock_fd, uint32_t tid, json_object *msg
     }
 
     json_object_object_add(response, cmd_type, json_object_new_string(cmd_value));
+
     json_object_object_add(report, "response_value", response);
     json_str = json_object_to_json_string(report);
     omp_log("%s", json_str);
@@ -315,7 +328,9 @@ static OSStatus process_omp_control( int sock_fd, uint32_t tid, json_object *msg
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
     len = write( sock_fd, json_str, json_size );
     require_action( len > 0 && len == json_size, exit, err = kWriteErr );
-    
+
+    omp_state.reply_control(cmd_type, cmd_value);
+
   exit:
     if(report)
 	json_object_put(report);
@@ -521,6 +536,11 @@ static void omp_thread( mico_thread_arg_t arg )
 
     timeout_init(timeout_table, TIMEOUT_MAX);
 
+    if(update_state_sem == NULL)
+	mico_rtos_init_semaphore( &update_state_sem, 1 );
+
+    update_state_fd = mico_create_event_fd( update_state_sem );
+
     while ( 1 ) {
 	sock_fd = connect_gmmp( s_conf->server.ip, s_conf->server.port );
 	require( sock_fd > 0, retry );
@@ -530,10 +550,19 @@ static void omp_thread( mico_thread_arg_t arg )
 
 	while (1) {
 	    t.tv_sec = timeout_next_timeout();
+	    /* FIXME: need to verify select with semaphore */
+	    t.tv_sec = 1;
 	    t.tv_usec = 0;
 	    FD_ZERO(&readfds);
+	    FD_SET(update_state_fd, &readfds);
 	    FD_SET(sock_fd, &readfds);
-	    require(select( Max(sock_fd, sock_fd) + 1 , &readfds, NULL, NULL, &t) >= 0, retry);
+	    require(select( Max(sock_fd, update_state_fd) + 1 , &readfds, NULL, NULL, &t) >= 0, retry);
+
+	    if ( FD_ISSET( update_state_fd, &readfds ) ){
+		mico_rtos_get_semaphore( &update_state_sem, 0 );
+		err = send_report( sock_fd, OMP_REPORT_NONPERIODIC );
+		require_noerr_string(err, retry, "Fail to send non-periodic Delivery");
+	    }
 	    
 	    if ( FD_ISSET(sock_fd, &readfds) ) {
 		err = process_recv_message( sock_fd );
@@ -550,7 +579,7 @@ static void omp_thread( mico_thread_arg_t arg )
 		timeout_enable( TIMEOUT_HEARTBEAT, omp_state.heartbeat_period );
 		break;
 	    case TIMEOUT_DELIVERY:
-		err = send_periodic_report( sock_fd );
+		err = send_report( sock_fd, OMP_REPORT_PERIODIC );
 		require_noerr_string(err, retry, "Fail to send Delivery");
 		timeout_enable( TIMEOUT_DELIVERY, omp_state.report_period );
 		break;
@@ -566,11 +595,12 @@ static void omp_thread( mico_thread_arg_t arg )
     }
 }
 
-OSStatus omp_client_start( fill_json fn )
+OSStatus omp_client_start( fill_json report, reply_control reply_control )
 {
     OSStatus err = kNoErr;
 
-    omp_state.fill_json = fn;
+    omp_state.fill_json = report;
+    omp_state.reply_control = reply_control;
 
     err = mico_rtos_create_thread( NULL, MICO_APPLICATION_PRIORITY, "OMP",
 				   omp_thread, STACK_SIZE_LOCAL_CONFIG_CLIENT_THREAD, 0 );
@@ -587,4 +617,11 @@ OSStatus omp_client_stop( void )
     require_action_string(0, exit, err = kUnsupportedErr, "Not supported");
   exit:
     return err;
+}
+
+OSStatus omp_trigger_event( void )
+{
+    if(update_state_sem)
+	mico_rtos_set_semaphore( &update_state_sem );
+    return kNoErr;
 }

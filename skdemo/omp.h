@@ -16,6 +16,11 @@
 #define OMP_CLIENT_SOCKET_TCP_KEEPCNT          (5)  // max retry
 
 typedef enum {
+    OMP_REPORT_PERIODIC,
+    OMP_REPORT_NONPERIODIC
+} omp_report_type_t;
+
+typedef enum {
     OMP_INIT	= 0x80,
     OMP_REPORT_INTERVAL = 0x81,
     OMP_DEINIT	= 0x82,
@@ -23,7 +28,9 @@ typedef enum {
     OMP_NOTIFY	= 0x95
 } omp_type_t;
 
-typedef void (*fill_json)( json_object *msg );
+typedef void (*fill_json)( json_object *msg, omp_report_type_t rtype );
+typedef void (*reply_control)( const char* cmd, const char* value );
 
-OSStatus omp_client_start( fill_json fn );
+OSStatus omp_client_start( fill_json report, reply_control reply_control );
 OSStatus omp_client_stop( void );
+OSStatus omp_trigger_event( void );
