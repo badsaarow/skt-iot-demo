@@ -237,7 +237,7 @@ static OSStatus send_report( int sock_fd, omp_report_type_t rtype )
     report_size = strlen( report_str );
     omp_log("%s", report_str);
 
-    size = fill_delivery_req( buf, REPORT_EVENT_DATA, report_size );
+    size = fill_delivery_req( buf, hd_rtype, report_size );
     len = write( sock_fd, buf, size );
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
     len = write( sock_fd, report_str, report_size );
