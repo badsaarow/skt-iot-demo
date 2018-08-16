@@ -562,11 +562,10 @@ static OSStatus process_recv_message( int sock_fd )
 	omp_log("Recv GMMP_ENC_INFO_RESP: result=0x%x", body->result_code);
 	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
 
-	omp_log("ENC_FLAG: %d, ENC_ALGORITHM: %d\n", body->enc_flag, body->enc_algorithm);
+	omp_log("ENC_FLAG: %d, ENC_ALGORITHM: %d", body->enc_flag, body->enc_algorithm);
 	check_string(!body->enc_flag || body->enc_algorithm == ENC_AES_128, "Currently support AES128 only");
 	if (body->enc_flag && body->enc_algorithm == ENC_AES_128) {
 	    MicoRandomNumberRead(smarthome_state.aes128_key, kAES_ECB_Size);
-	    smarthome_state.use_aes128 = true;
 
 	    err = send_set_enc_key_req( sock_fd );
 	} else {
@@ -580,6 +579,7 @@ static OSStatus process_recv_message( int sock_fd )
 	set_enc_key_resp_t *body = (set_enc_key_resp_t*)&hd[1];
 	omp_log("Recv GMMP_SET_ENC_KEY_RESP: result=0x%x", body->result_code);
 	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
+	smarthome_state.use_aes128 = true;
 	
 	err = send_profile_req( sock_fd );
 	require_noerr( err, exit );
