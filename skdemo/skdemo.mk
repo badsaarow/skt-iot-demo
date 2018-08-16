@@ -14,4 +14,4 @@ $(NAME)_SOURCES := main.c \
 		omp_process.c \
 		timeout.c
 
-GLOBAL_DEFINES += USE_MiCOKit_EXT
+GLOBAL_DEFINES += USE_MiCOKit_EXT EasyLink_Needs_Reboot
