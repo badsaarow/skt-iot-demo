@@ -339,6 +339,38 @@ static OSStatus process_omp_control( int sock_fd, uint32_t tid, json_object *msg
     return err;
 }
 
+static OSStatus process_omp_deinit( int sock_fd, uint32_t tid, json_object *msg, void *buf )
+{
+    int len;
+    int json_size;
+    size_t size;
+    json_object* report = NULL;
+    const char *  json_str;
+    OSStatus err = kNoErr;
+
+    report = json_object_new_object();
+    json_object_object_foreach( msg, key, val ) {
+	if ( strcmp( key, "command_id" ) == 0 ) {
+	    json_object_object_add(report, "command_id", json_object_new_string(json_object_get_string(val)));
+	}
+    }
+    json_str = json_object_to_json_string(report);
+    omp_log("%s", json_str);
+    require_action( json_str, exit, err = kNoMemoryErr );
+
+    json_size = strlen(json_str);
+    size = fill_ctrl_noti( buf, OMP_DEINIT, json_size, tid );
+    len = write( sock_fd, buf, size );
+    require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
+    len = write( sock_fd, json_str, json_size );
+    require_action( len > 0 && len == json_size, exit, err = kWriteErr );
+
+  exit:
+    if(report)
+	json_object_put(report);
+    return err;
+}
+
 static OSStatus process_control_message( int sock_fd, uint32_t tid, int control_type, char* str, void *buf )
 {
     OSStatus err = kNoErr;
@@ -357,8 +389,11 @@ static OSStatus process_control_message( int sock_fd, uint32_t tid, int control_
 	err = process_omp_control( sock_fd, tid, msg, buf );
 	require_noerr(err, exit);
 	break;
-    case OMP_REPORT_INTERVAL:
     case OMP_DEINIT:
+	err = process_omp_deinit( sock_fd, tid, msg, buf );
+	require_noerr(err, exit);
+	break;
+    case OMP_REPORT_INTERVAL:
     default:
 	omp_log("Unknown control type = %d(0x%x)", control_type, control_type);
 	break;
@@ -477,6 +512,16 @@ static OSStatus process_recv_message( int sock_fd )
 	ctrl_noti_resp_t *body = (ctrl_noti_resp_t*)&hd[1];
 	omp_log("Recv GMMP_CTRL_NOTI_RESP: result=0x%x, control type=0x%x", body->result_code, body->control_type);
 	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
+
+	if (body->control_type == OMP_DEINIT && body->result_code == 0) {
+		smarthome_device_user_conf_t* conf = get_user_conf();
+		mico_rtos_lock_mutex( &sys_context->flashContentInRam_mutex );
+		memset( &conf->server, 0, sizeof(conf->server) );
+		sys_context->flashContentInRam.micoSystemConfig.configured = unConfigured;
+		mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
+		mico_system_context_update(mico_system_context_get());
+		mico_system_power_perform( &sys_context->flashContentInRam, eState_Software_Reset );
+	}
 	break;
     }
     case GMMP_ENC_INFO_RESP: {
