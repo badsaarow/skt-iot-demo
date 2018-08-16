@@ -566,7 +566,19 @@ static OSStatus process_recv_message( int sock_fd )
 	omp_log("ENC_FLAG: %d, ENC_ALGORITHM: %d", body->enc_flag, body->enc_algorithm);
 	check_string(!body->enc_flag || body->enc_algorithm == ENC_AES_128, "Currently support AES128 only");
 	if (body->enc_flag && body->enc_algorithm == ENC_AES_128) {
-	    MicoRandomNumberRead(smarthome_state.aes128_key, kAES_ECB_Size);
+	    int i;
+	    for (i = 0; i < kAES_ECB_Size; i++) {
+		unsigned int x;
+		MicoRandomNumberRead(&x, sizeof(x));
+		x = x % 62;
+		if (x < 10)
+		    x = x + '0';
+		else if (x < 10 + 26)
+		    x = x - 10 + 'A';
+		else
+		    x = x - 36 + 'a';
+		smarthome_state.aes128_key[i] = x;
+	    }
 	    AES_ECB_Init(&smarthome_state.enc_context, kAES_ECB_Mode_Encrypt, smarthome_state.aes128_key);
 	    AES_ECB_Init(&smarthome_state.dec_context, kAES_ECB_Mode_Decrypt, smarthome_state.aes128_key);
 	    err = send_set_enc_key_req( sock_fd );
