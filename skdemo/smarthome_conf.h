@@ -21,10 +21,6 @@
 #define LEN_MODEL_ID		32
 #define LEN_SERIAL_NUMBER	16
 #define LEN_DOMAIN_CODE		10
-#define LEN_AES_KEY		32
-#define LEN_AUTH_KEY		16
-#define LEN_GW_ID		16
-#define LEN_DEVICE_ID		16
 
 /* Device Information
  *
@@ -43,12 +39,7 @@ typedef struct
 {
     char ip[32];				/* service ip address */
     ushort port;				/* server port */
-
     char domain_code[LEN_DOMAIN_CODE+1];	/* domain code(application id) */
-    char aes_key[LEN_AES_KEY+1];		/* AES key (128,192,256) */
-    char auth_key[LEN_AUTH_KEY+1];		/* auth key */
-    char gw_id[LEN_GW_ID+1];			/* Gateway ID */
-    char dev_id[LEN_DEVICE_TYPE+1];		/* Devcie ID */
 } smarhome_server_info_t;
     
 typedef struct

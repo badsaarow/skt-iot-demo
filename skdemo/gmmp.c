@@ -8,6 +8,7 @@
 
 #include "gmmp.h"
 #include "smarthome_conf.h"
+ #include "smarthome.h"
 
 #define GMMP_VERSION 0x21
 
@@ -282,6 +283,8 @@ OSStatus read_gmmp_frame( int fd, void *buf, size_t *size )
 static void fill_gmmp_hd( gmmp_header_t* hd, gmmp_type_t type, size_t total_size, uint32_t tid )
 {
     smarthome_device_user_conf_t *conf = get_user_conf();
+    smarthome_state_t *state = get_smarthome_state();
+
     hd->ver = GMMP_VERSION;
     hd->len = total_size;
     hd->type = type;
@@ -289,7 +292,7 @@ static void fill_gmmp_hd( gmmp_header_t* hd, gmmp_type_t type, size_t total_size
     hd->total_count = 1;
     hd->current_count = 1;
     memcpy(hd->auth_id, conf->dev_info.device_sn, sizeof(hd->auth_id));
-    memcpy(hd->auth_key, conf->server.auth_key, sizeof(hd->auth_key));
+    memcpy(hd->auth_key, state->auth_key, sizeof(hd->auth_key));
     if (tid == 0)
 	tid = ++cur_tid;
     hd->tid = tid;
@@ -323,11 +326,12 @@ size_t fill_dev_reg_req( void* buf )
     gmmp_header_t *hd = buf;
     dev_reg_req_t *body = (dev_reg_req_t*)&hd[1];
     smarthome_device_user_conf_t *conf = get_user_conf();
+    smarthome_state_t *state = get_smarthome_state();
 
     size = sizeof(*hd) + sizeof(*body);
     fill_gmmp_hd( hd, GMMP_DEV_REG_REQ, size, 0);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
-    memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
+    memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memcpy(body->manufacture_id, conf->dev_info.device_mf_id, sizeof(body->manufacture_id));
     dump_gmmp(hd);
 
@@ -341,11 +345,12 @@ size_t fill_heartbeat_req( void* buf )
     gmmp_header_t *hd = buf;
     heartbeat_req_t *body = (heartbeat_req_t*)&hd[1];
     smarthome_device_user_conf_t *conf = get_user_conf();
+    smarthome_state_t *state = get_smarthome_state();
 
     size = sizeof(*hd) + sizeof(*body);
     fill_gmmp_hd( hd, GMMP_HEARTBEAT_REQ, size, 0);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
-    memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
+    memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     dump_gmmp(hd);
 
     hton_gmmp_hd(hd);
@@ -358,11 +363,12 @@ size_t fill_profile_req( void* buf )
     gmmp_header_t *hd = buf;
     profile_req_t *body = (profile_req_t*)&hd[1];
     smarthome_device_user_conf_t *conf = get_user_conf();
+    smarthome_state_t *state = get_smarthome_state();
 
     size = sizeof(*hd) + sizeof(*body);
     fill_gmmp_hd( hd, GMMP_PROFILE_REQ, size, 0);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
-    memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
+    memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id)); /* no device id */
     dump_gmmp(hd);
     
@@ -401,11 +407,12 @@ size_t fill_delivery_req( void* buf, gmmp_report_type_t report_type, int json_si
     gmmp_header_t *hd = buf;
     delivery_req_t *body = (delivery_req_t*)&hd[1];
     smarthome_device_user_conf_t *conf = get_user_conf();
+    smarthome_state_t *state = get_smarthome_state();
 
     size = sizeof(*hd) + sizeof(*body);
     fill_gmmp_hd( hd, GMMP_DELIVERY_REQ, size + json_size, 0);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
-    memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
+    memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id));
     body->report_type = report_type;
     body->media_type = MEDIA_TYPE_APPLICATION_JSON;
@@ -421,11 +428,12 @@ size_t fill_ctrl_noti( void* buf, int control_type, int json_size, uint32_t tid 
     gmmp_header_t *hd = buf;
     ctrl_noti_t *body = (ctrl_noti_t*)&hd[1];
     smarthome_device_user_conf_t *conf = get_user_conf();
+    smarthome_state_t *state = get_smarthome_state();
 
     size = sizeof(*hd) + sizeof(*body);
     fill_gmmp_hd( hd, GMMP_CTRL_NOTI, size + json_size, tid);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
-    memcpy(body->gw_id, conf->server.gw_id, sizeof(body->gw_id));
+    memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id));
     body->control_type = control_type;
     body->result_code = 0;

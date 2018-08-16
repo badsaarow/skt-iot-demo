@@ -70,11 +70,7 @@ static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, 
 	cmd_printf("Serial Number  : %s\r\n", conf->dev_info.device_sn);
 	cmd_printf("Server IP      : %s\r\n", conf->server.ip);
 	cmd_printf("Server Port    : %d\r\n", conf->server.port);
-	cmd_printf("AES Key	   : %s\r\n", conf->server.aes_key);
 	cmd_printf("Domain Code    : %s\r\n", conf->server.domain_code);
-	cmd_printf("GW ID          : %s\r\n", conf->server.gw_id);
-	cmd_printf("Dev ID         : %s\r\n", conf->server.dev_id);
-	cmd_printf("Auth Key       : %s\r\n", conf->server.auth_key);
 	cmd_printf("Configured     : %d\r\n", sys_context->flashContentInRam.micoSystemConfig.configured);
 	mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
 	return;
@@ -101,12 +97,6 @@ static void devinfo_Command( char *pcWriteBuffer, int xWriteBufferLen,int argc, 
 		sys_context->flashContentInRam.micoSystemConfig.configured = unConfigured;
 	    processed = MICO_TRUE;
 	}
-	if (!processed && !strcasecmp(argv[1], "gw")) {
-	    /* erase only */
-	    memset(conf->server.gw_id, 0, sizeof(conf->server.gw_id));
-	    processed = MICO_TRUE;
-	}
-	FILL_USER_CONF("auth", server.auth_key);
 	mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
 	status = mico_system_context_update(mico_system_context_get());
 	check_string(status == kNoErr, "Fail to update conf to Flash memory");

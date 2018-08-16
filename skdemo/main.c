@@ -7,7 +7,7 @@
 #include "mico.h"
 
 #include "smarthome_conf.h"
-#include "omp.h"
+#include "smarthome.h"
 #include "micokit_ext.h"
 
 #define smarthome_log(format, ...)  custom_log("main", format, ##__VA_ARGS__)

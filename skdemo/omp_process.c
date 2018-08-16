@@ -8,8 +8,8 @@
 #include "SocketUtils.h"
 
 #include "smarthome_conf.h"
+#include "smarthome.h"
 #include "gmmp.h"
-#include "omp.h"
 #include "timeout.h"
 
 extern system_context_t* sys_context;
@@ -21,15 +21,7 @@ typedef enum {
     TIMEOUT_MAX
 } timeout_type_t;
 
-typedef struct
-{
-    int report_period;
-    int heartbeat_period;
-    fill_json fill_json;
-    reply_control reply_control;
-} omp_state_t;
-
-static omp_state_t omp_state = {
+smarthome_state_t smarthome_state = {
     .report_period = 600,
     .heartbeat_period = 600,
     .fill_json = NULL,
@@ -222,7 +214,7 @@ static OSStatus send_report( int sock_fd, omp_report_type_t rtype )
     msg = json_object_new_object();
     require( report && msg, exit );
 
-    omp_state.fill_json( msg, rtype );
+    smarthome_state.fill_json( msg, rtype );
 
     if (rtype == OMP_REPORT_PERIODIC) {
 	report_str = "periodic_data";
@@ -329,7 +321,7 @@ static OSStatus process_omp_control( int sock_fd, uint32_t tid, json_object *msg
     len = write( sock_fd, json_str, json_size );
     require_action( len > 0 && len == json_size, exit, err = kWriteErr );
 
-    omp_state.reply_control(cmd_type, cmd_value);
+    smarthome_state.reply_control(cmd_type, cmd_value);
 
   exit:
     if(report)
@@ -428,20 +420,19 @@ static OSStatus process_recv_message( int sock_fd )
     case GMMP_GW_REG_RESP: {
 	bool update = false;
 	gw_reg_resp_t *body = (gw_reg_resp_t*)&hd[1];
-	smarthome_device_user_conf_t* s_conf = get_user_conf();
 	omp_log("Recv GMMP_GW_REG_RESP: result=0x%x", body->result_code);
 	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
 
 	mico_rtos_lock_mutex( &sys_context->flashContentInRam_mutex );
-	if ( memcmp( s_conf->server.auth_key, hd->auth_key, sizeof(hd->auth_key)) != 0 ) {
+	if ( memcmp( smarthome_state.auth_key, hd->auth_key, sizeof(hd->auth_key)) != 0 ) {
 	    update = true;
-	    memset( s_conf->server.auth_key, 0, sizeof(s_conf->server.auth_key) );
-	    memcpy( s_conf->server.auth_key, hd->auth_key, sizeof(hd->auth_key) );
+	    memset( smarthome_state.auth_key, 0, sizeof(smarthome_state.auth_key) );
+	    memcpy( smarthome_state.auth_key, hd->auth_key, sizeof(hd->auth_key) );
 	}
-	if ( memcmp(s_conf->server.gw_id, body->gw_id, sizeof(body->gw_id)) != 0 ) {
+	if ( memcmp(smarthome_state.gw_id, body->gw_id, sizeof(body->gw_id)) != 0 ) {
 	    update = true;
-	    memset( s_conf->server.gw_id, 0, sizeof(s_conf->server.gw_id) );
-	    memcpy( s_conf->server.gw_id, body->gw_id, sizeof(body->gw_id) );
+	    memset( smarthome_state.gw_id, 0, sizeof(smarthome_state.gw_id) );
+	    memcpy( smarthome_state.gw_id, body->gw_id, sizeof(body->gw_id) );
 	}
 	mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
 	if (update) {
@@ -458,11 +449,11 @@ static OSStatus process_recv_message( int sock_fd )
 	body->heartbeat_period = ntohl(body->heartbeat_period);
 	body->report_period = ntohl(body->report_period);
 	omp_log("Recv GMMP_PROFILE_RESP: hearteat=%lu, report=%lu", body->heartbeat_period, body->report_period);
-	omp_state.report_period = body->report_period * 60;
-	omp_state.heartbeat_period = body->heartbeat_period * 60;
+	smarthome_state.report_period = body->report_period * 60;
+	smarthome_state.heartbeat_period = body->heartbeat_period * 60;
 
 	timeout_enable(TIMEOUT_HEARTBEAT, 1); /* force to trigger */
-	timeout_enable(TIMEOUT_DELIVERY, omp_state.report_period);
+	timeout_enable(TIMEOUT_DELIVERY, smarthome_state.report_period);
 
 	/* NOTE: seems unnessary */
 	if (0) {
@@ -474,15 +465,14 @@ static OSStatus process_recv_message( int sock_fd )
     case GMMP_DEV_REG_RESP: {
 	bool update = false;
 	dev_reg_resp_t *body = (dev_reg_resp_t*)&hd[1];
-	smarthome_device_user_conf_t* s_conf = get_user_conf();
 	omp_log("Recv GMMP_DEV_REG_RESP: result=0x%x", body->result_code);
 	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
 	
 	mico_rtos_lock_mutex( &sys_context->flashContentInRam_mutex );
-	if ( memcmp(s_conf->server.dev_id, body->device_id, sizeof(body->device_id)) != 0 ) {
+	if ( memcmp(smarthome_state.dev_id, body->device_id, sizeof(body->device_id)) != 0 ) {
 	    update = true;
-	    memset( s_conf->server.dev_id, 0, sizeof(s_conf->server.dev_id) );
-	    memcpy( s_conf->server.dev_id, body->device_id, sizeof(body->device_id) );
+	    memset( smarthome_state.dev_id, 0, sizeof(smarthome_state.dev_id) );
+	    memcpy( smarthome_state.dev_id, body->device_id, sizeof(body->device_id) );
 	}
 	mico_rtos_unlock_mutex( &sys_context->flashContentInRam_mutex );
 	if (update) {
@@ -621,12 +611,12 @@ static void omp_thread( mico_thread_arg_t arg )
 	    case TIMEOUT_HEARTBEAT:
 		err = send_heaertbeat( sock_fd );
 		require_noerr_string(err, retry, "Fail to send Heartbeat");
-		timeout_enable( TIMEOUT_HEARTBEAT, omp_state.heartbeat_period );
+		timeout_enable( TIMEOUT_HEARTBEAT, smarthome_state.heartbeat_period );
 		break;
 	    case TIMEOUT_DELIVERY:
 		err = send_report( sock_fd, OMP_REPORT_PERIODIC );
 		require_noerr_string(err, retry, "Fail to send Delivery");
-		timeout_enable( TIMEOUT_DELIVERY, omp_state.report_period );
+		timeout_enable( TIMEOUT_DELIVERY, smarthome_state.report_period );
 		break;
 	    default:
 		break;
@@ -644,8 +634,8 @@ OSStatus omp_client_start( fill_json report, reply_control reply_control )
 {
     OSStatus err = kNoErr;
 
-    omp_state.fill_json = report;
-    omp_state.reply_control = reply_control;
+    smarthome_state.fill_json = report;
+    smarthome_state.reply_control = reply_control;
 
     err = mico_rtos_create_thread( NULL, MICO_APPLICATION_PRIORITY, "OMP",
 				   omp_thread, STACK_SIZE_LOCAL_CONFIG_CLIENT_THREAD, 0 );

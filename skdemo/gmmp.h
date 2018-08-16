@@ -8,6 +8,11 @@
 
 #include "smarthome_conf.h"
 
+#define LEN_GW_ID		16
+#define LEN_DEVICE_ID		16
+#define LEN_AUTH_KEY		16
+#define LEN_AES_KEY		32
+
 #define HEARTBEAT_INTERVAL	600
 
 #define MEDIA_TYPE_APPLICATION_JSON	0x65
