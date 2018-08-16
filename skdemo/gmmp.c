@@ -323,14 +323,14 @@ static void fill_gmmp_hd( gmmp_header_t* hd, gmmp_type_t type, size_t total_size
     omp_log("  size: %u, tid: %lu", total_size, tid);
 }
 
-#define PREPARE_HD(hd_type, data_type, use_enc)\
+#define PREPARE_HD(hd_type, data_type, tid, use_enc)	\
     size_t size;\
     gmmp_header_t *hd = buf;\
     data_type *body;\
     smarthome_state_t *state = get_smarthome_state();\
     smarthome_device_user_conf_t *conf = get_user_conf();\
     size = sizeof(*hd) + sizeof(*body);\
-    fill_gmmp_hd( hd, hd_type, size, 0, (use_enc) ? state->use_aes128: 0); \
+    fill_gmmp_hd( hd, hd_type, size, tid, (use_enc) ? state->use_aes128: 0); \
     body = get_body_ptr( hd );
     
 #define POST_PROCESS()\
@@ -340,7 +340,7 @@ static void fill_gmmp_hd( gmmp_header_t* hd, gmmp_type_t type, size_t total_size
 
 size_t fill_gw_reg_req( void* buf )
 {
-    PREPARE_HD(GMMP_GW_REG_REQ, gw_reg_req_t, false);
+    PREPARE_HD(GMMP_GW_REG_REQ, gw_reg_req_t, 0, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->manufacture_id, conf->dev_info.device_mf_id, sizeof(body->manufacture_id));
     POST_PROCESS();
@@ -348,7 +348,7 @@ size_t fill_gw_reg_req( void* buf )
 
 size_t fill_dev_reg_req( void* buf )
 {
-    PREPARE_HD(GMMP_DEV_REG_REQ, dev_reg_req_t, false);
+    PREPARE_HD(GMMP_DEV_REG_REQ, dev_reg_req_t, 0, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memcpy(body->manufacture_id, conf->dev_info.device_mf_id, sizeof(body->manufacture_id));
@@ -357,7 +357,7 @@ size_t fill_dev_reg_req( void* buf )
 
 size_t fill_enc_info_req( void* buf )
 {
-    PREPARE_HD(GMMP_ENC_INFO_REQ, enc_info_req_t, false);
+    PREPARE_HD(GMMP_ENC_INFO_REQ, enc_info_req_t, 0, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, smarthome_state.gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id));
@@ -366,7 +366,7 @@ size_t fill_enc_info_req( void* buf )
 
 size_t fill_set_enc_key_req( void* buf )
 {
-    PREPARE_HD(GMMP_SET_ENC_KEY_REQ, set_enc_key_req_t, false);
+    PREPARE_HD(GMMP_SET_ENC_KEY_REQ, set_enc_key_req_t, 0, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id));
@@ -377,7 +377,7 @@ size_t fill_set_enc_key_req( void* buf )
 
 size_t fill_heartbeat_req( void* buf )
 {
-    PREPARE_HD(GMMP_HEARTBEAT_REQ, heartbeat_req_t, false);
+    PREPARE_HD(GMMP_HEARTBEAT_REQ, heartbeat_req_t, 0, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     POST_PROCESS();
@@ -385,7 +385,7 @@ size_t fill_heartbeat_req( void* buf )
 
 size_t fill_profile_req( void* buf )
 {
-    PREPARE_HD(GMMP_PROFILE_REQ, profile_req_t, false);
+    PREPARE_HD(GMMP_PROFILE_REQ, profile_req_t, 0, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id)); /* no device id */
@@ -417,7 +417,7 @@ size_t fill_ctrl_resp( void* buf, gmmp_header_t *req)
 
 size_t fill_delivery_req( void* buf, gmmp_report_type_t report_type, const void* json, int json_size )
 {
-    PREPARE_HD(GMMP_DELIVERY_REQ, delivery_req_t, true);
+    PREPARE_HD(GMMP_DELIVERY_REQ, delivery_req_t, 0, true);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id));
@@ -431,7 +431,7 @@ size_t fill_delivery_req( void* buf, gmmp_report_type_t report_type, const void*
 
 size_t fill_ctrl_noti( void* buf, int control_type, const void* json, int json_size, uint32_t tid )
 {
-    PREPARE_HD(GMMP_CTRL_NOTI, ctrl_noti_t, false);
+    PREPARE_HD(GMMP_CTRL_NOTI, ctrl_noti_t, tid, true);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id));
@@ -439,8 +439,7 @@ size_t fill_ctrl_noti( void* buf, int control_type, const void* json, int json_s
     body->result_code = 0;
 
     omp_log("Json: %s", (char*)json);
-    hd->len += json_size;
-    memcpy(&body[1], json, json_size);
+    hd->len += encrypt_json(&body[1], json, json_size);
     POST_PROCESS();
 }
 
