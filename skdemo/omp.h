@@ -23,7 +23,7 @@ typedef enum {
 typedef enum {
     OMP_INIT	= 0x80,
     OMP_REPORT_INTERVAL = 0x81,
-    OMP_DEINIT	= 0x82,
+    OMP_DEINIT	= 0x83,
     OMP_CONTROL = 0x94,
     OMP_NOTIFY	= 0x95
 } omp_type_t;
