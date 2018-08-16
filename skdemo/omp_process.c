@@ -272,11 +272,9 @@ static OSStatus send_report( int sock_fd, omp_report_type_t rtype )
     report_size = strlen( report_str );
     omp_log("%s", report_str);
 
-    size = fill_delivery_req( buf, hd_rtype, report_size );
+    size = fill_delivery_req( buf, hd_rtype, report_str, report_size );
     len = write( sock_fd, buf, size );
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
-    len = write( sock_fd, report_str, report_size );
-    require_action( len > 0 && len == report_size, exit, err = kWriteErr );
 
   exit:
     if ( buf )
@@ -311,11 +309,9 @@ static OSStatus process_omp_init( int sock_fd, uint32_t tid, json_object *msg, v
     require_action( json_str, exit, err = kNoMemoryErr );
 
     json_size = strlen(json_str);
-    size = fill_ctrl_noti( buf, OMP_INIT, json_size, tid );
+    size = fill_ctrl_noti( buf, OMP_INIT, json_str, json_size, tid );
     len = write( sock_fd, buf, size );
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
-    len = write( sock_fd, json_str, json_size );
-    require_action( len > 0 && len == json_size, exit, err = kWriteErr );
 
     /* force to trigger send delivery message */
     timeout_enable( TIMEOUT_DELIVERY, 0 );
@@ -358,11 +354,9 @@ static OSStatus process_omp_control( int sock_fd, uint32_t tid, json_object *msg
     require_action( json_str, exit, err = kNoMemoryErr );
 
     json_size = strlen(json_str);
-    size = fill_ctrl_noti( buf, OMP_CONTROL, json_size, tid );
+    size = fill_ctrl_noti( buf, OMP_CONTROL, json_str, json_size, tid );
     len = write( sock_fd, buf, size );
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
-    len = write( sock_fd, json_str, json_size );
-    require_action( len > 0 && len == json_size, exit, err = kWriteErr );
 
     smarthome_state.reply_control(cmd_type, cmd_value);
 
@@ -394,11 +388,9 @@ static OSStatus process_omp_deinit( int sock_fd, uint32_t tid, json_object *msg,
     require_action( json_str, exit, err = kNoMemoryErr );
 
     json_size = strlen(json_str);
-    size = fill_ctrl_noti( buf, OMP_DEINIT, json_size, tid );
+    size = fill_ctrl_noti( buf, OMP_DEINIT, json_str, json_size, tid );
     len = write( sock_fd, buf, size );
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_CTRL_NOTI" );
-    len = write( sock_fd, json_str, json_size );
-    require_action( len > 0 && len == json_size, exit, err = kWriteErr );
 
   exit:
     if(report)
@@ -406,11 +398,21 @@ static OSStatus process_omp_deinit( int sock_fd, uint32_t tid, json_object *msg,
     return err;
 }
 
-static OSStatus process_control_message( int sock_fd, uint32_t tid, int control_type, char* str, void *buf )
+static OSStatus process_control_message( int sock_fd, bool encrypted, uint32_t tid, int control_type,
+					 char* str, size_t size, void *buf )
 {
     OSStatus err = kNoErr;
     json_object *msg = NULL;
-    omp_log("%s", str);
+
+    if (encrypted) {
+	uint16_t org_size = ntohs(*(uint16_t*)str);
+	str += 2;
+	AES_ECB_Update(&smarthome_state.dec_context, str, size-sizeof(uint16_t), str);
+	size = org_size;
+    }
+    str[size] = '\0';
+    omp_log("Recv GMMP_CTRL_REQ: control type=0x%x (json=%u)", control_type, size);
+    omp_log("Msg: %s", str);
 
     msg = json_tokener_parse( str );
     require_action( msg, exit, err = kUnknownErr );
@@ -483,6 +485,9 @@ static OSStatus process_recv_message( int sock_fd )
 	    check_string(err == kNoErr, "Fail to update conf to Flash memory");
 	}
 
+	timeout_enable(TIMEOUT_HEARTBEAT, 3); /* force to trigger */
+	timeout_enable(TIMEOUT_DELIVERY, smarthome_state.report_period);
+
 	err = send_enc_info_req( sock_fd );
 	require_noerr( err, exit );
 	break;
@@ -495,14 +500,10 @@ static OSStatus process_recv_message( int sock_fd )
 	smarthome_state.report_period = body->report_period * 60;
 	smarthome_state.heartbeat_period = body->heartbeat_period * 60;
 
-	timeout_enable(TIMEOUT_HEARTBEAT, 1); /* force to trigger */
+	timeout_enable(TIMEOUT_HEARTBEAT, 3); /* force to trigger */
 	timeout_enable(TIMEOUT_DELIVERY, smarthome_state.report_period);
 
-	/* NOTE: seems unnessary */
-	if (0) {
-	    err = send_dev_register( sock_fd );
-	    require_noerr( err, exit );
-	}
+	err = send_enc_info_req( sock_fd );
 	break;
     }
     case GMMP_DEV_REG_RESP: {
@@ -566,13 +567,11 @@ static OSStatus process_recv_message( int sock_fd )
 	check_string(!body->enc_flag || body->enc_algorithm == ENC_AES_128, "Currently support AES128 only");
 	if (body->enc_flag && body->enc_algorithm == ENC_AES_128) {
 	    MicoRandomNumberRead(smarthome_state.aes128_key, kAES_ECB_Size);
-
+	    AES_ECB_Init(&smarthome_state.enc_context, kAES_ECB_Mode_Encrypt, smarthome_state.aes128_key);
+	    AES_ECB_Init(&smarthome_state.dec_context, kAES_ECB_Mode_Decrypt, smarthome_state.aes128_key);
 	    err = send_set_enc_key_req( sock_fd );
-	} else {
-	    /* skip encryption */
-	    err = send_profile_req( sock_fd );
+	    require_noerr( err, exit );
 	}
-	require_noerr( err, exit );
 	break;
     }
     case GMMP_SET_ENC_KEY_RESP: {
@@ -580,18 +579,14 @@ static OSStatus process_recv_message( int sock_fd )
 	omp_log("Recv GMMP_SET_ENC_KEY_RESP: result=0x%x", body->result_code);
 	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
 	smarthome_state.use_aes128 = true;
-	
-	err = send_profile_req( sock_fd );
-	require_noerr( err, exit );
+	timeout_enable(TIMEOUT_HEARTBEAT, 1);
 	break;
     }
     case  GMMP_CTRL_REQ: {
 	int len;
 	ctrl_req_t *body = (ctrl_req_t*)&hd[1];
 	char *json_data = (char*)&body[1];
-	size_t size = hd->len - sizeof(*hd) - sizeof(*body);
-	json_data[size] = '\0';
-	omp_log("Recv GMMP_CTRL_REQ: control type=0x%x (json=%u)", body->control_type, size);
+	size_t size;
 
 	/* reply first */
 	hd_resp = (void*)((char*)buf + MAX_OMP_FRAME);
@@ -599,7 +594,8 @@ static OSStatus process_recv_message( int sock_fd )
 	len = write( sock_fd, hd_resp, size );
 	require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to respond GMMP_CTRL_REQ" );
 
-	err = process_control_message( sock_fd, hd->tid, body->control_type, json_data, hd_resp );
+	size = hd->len - sizeof(*hd) - sizeof(*body);
+	err = process_control_message( sock_fd, hd->encrypted, hd->tid, body->control_type, json_data, size, hd_resp );
 	require_noerr(err, exit);
 
 	if (body->control_type == OMP_INIT)

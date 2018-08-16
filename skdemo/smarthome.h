@@ -7,6 +7,7 @@
 #pragma once
 
 #include "gmmp.h"
+#include "AESUtils.h"
 
 #define MAX_OMP_FRAME				(600)
  
@@ -33,16 +34,19 @@ typedef void (*reply_control)( const char* cmd, const char* value );
 
 typedef struct
 {
-    char auth_key[LEN_AUTH_KEY+1];		/* auth key */
-    char gw_id[LEN_GW_ID+1];			/* Gateway ID */
-    char dev_id[LEN_DEVICE_TYPE+1];		/* Devcie ID */
-    char aes128_key[LEN_AES_KEY+1];		/* AES key (128,192,256) */
+    char auth_key[LEN_AUTH_KEY];		/* auth key */
+    char gw_id[LEN_GW_ID];			/* Gateway ID */
+    char dev_id[LEN_DEVICE_ID];		/* Devcie ID */
+    uint8_t aes128_key[kAES_ECB_Size];		/* AES key (128,192,256) */
     bool use_aes128;
      
     int report_period;
     int heartbeat_period;
     fill_json fill_json;
     reply_control reply_control;
+
+    AES_ECB_Context enc_context;
+    AES_ECB_Context dec_context;
 } smarthome_state_t;
 
 extern smarthome_state_t smarthome_state;

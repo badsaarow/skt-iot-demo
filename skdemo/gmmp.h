@@ -187,7 +187,7 @@ size_t fill_set_enc_key_req( void* buf );
 size_t fill_heartbeat_req( void* buf );
 size_t fill_profile_req( void* buf );
 size_t fill_ctrl_resp( void* buf, gmmp_header_t *req);
-size_t fill_delivery_req( void* buf, gmmp_report_type_t report_type, int json_size );
-size_t fill_ctrl_noti( void* buf, int control_type, int json_size, uint32_t tid );
+size_t fill_delivery_req( void* buf, gmmp_report_type_t report_type, const void* json, int json_size );
+size_t fill_ctrl_noti( void* buf, int control_type, const void* json, int json_size, uint32_t tid );
 void set_tid( uint32_t tid );
 

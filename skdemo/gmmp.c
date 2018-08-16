@@ -51,17 +51,14 @@ static const char* get_type_name(int type)
 
 static void *get_body_ptr( gmmp_header_t* hd )
 {
-    smarthome_state_t *state = get_smarthome_state();
-
     void *body = &hd[1];
-    if (state->use_aes128) {
-	body = (char*)body + 2;
-    }
     return body;
 }
 
 static void dump_gmmp( gmmp_header_t* hd )
+
 {
+//#define DEBUG_MESSAGE
 #ifdef DEBUG_MESSAGE
     char buf[40];
     omp_log(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
@@ -218,6 +215,18 @@ static void dump_gmmp( gmmp_header_t* hd )
 #endif
 }
 
+static size_t encrypt_json(void *dest, const void *src, int json_size)
+{
+    size_t enc_size;
+    uint16_t *org_size = dest;
+    smarthome_state_t *state = get_smarthome_state();
+
+    *org_size = htons(json_size);
+    enc_size = ((json_size + kAES_ECB_Size -  1) / kAES_ECB_Size) * kAES_ECB_Size;
+    AES_ECB_Update(&state->enc_context, src, enc_size, &org_size[1]);
+    return enc_size + sizeof(uint16_t);
+}
+
 static void ntoh_gmmp_hd(gmmp_header_t* hd)
 {
     hd->len = ntohs(hd->len);
@@ -233,6 +242,7 @@ static void hton_gmmp_hd(gmmp_header_t* hd)
     hd->timestamp = htonl(hd->timestamp);
     hd->total_count = htons(hd->total_count);
     hd->current_count = htons(hd->current_count);
+
     hd->tid = htonl(hd->tid);
 }
 
@@ -265,7 +275,6 @@ OSStatus read_gmmp_frame( int fd, void *buf, size_t *size )
     }
 
     ntoh_gmmp_hd(hd);
-
     switch ( hd->type ) {
     case GMMP_PROFILE_RESP: {
 	    profile_resp_t *body = (profile_resp_t*)&hd[1];
@@ -314,126 +323,80 @@ static void fill_gmmp_hd( gmmp_header_t* hd, gmmp_type_t type, size_t total_size
     omp_log("  size: %u, tid: %lu", total_size, tid);
 }
 
+#define PREPARE_HD(hd_type, data_type, use_enc)\
+    size_t size;\
+    gmmp_header_t *hd = buf;\
+    data_type *body;\
+    smarthome_state_t *state = get_smarthome_state();\
+    smarthome_device_user_conf_t *conf = get_user_conf();\
+    size = sizeof(*hd) + sizeof(*body);\
+    fill_gmmp_hd( hd, hd_type, size, 0, (use_enc) ? state->use_aes128: 0); \
+    body = get_body_ptr( hd );
+    
+#define POST_PROCESS()\
+    dump_gmmp(hd);\
+    hton_gmmp_hd(hd);\
+    return ntohs(hd->len);
+
 size_t fill_gw_reg_req( void* buf )
 {
-    size_t size;
-    gmmp_header_t *hd = buf;
-    gw_reg_req_t *body = get_body_ptr( hd );
-    smarthome_device_user_conf_t *conf = get_user_conf();
-
-    size = sizeof(*hd) + sizeof(*body);
-    fill_gmmp_hd( hd, GMMP_GW_REG_REQ, size, 0, false);
+    PREPARE_HD(GMMP_GW_REG_REQ, gw_reg_req_t, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->manufacture_id, conf->dev_info.device_mf_id, sizeof(body->manufacture_id));
-    dump_gmmp(hd);
-
-    hton_gmmp_hd(hd);
-    return size;
+    POST_PROCESS();
 }
 
 size_t fill_dev_reg_req( void* buf )
 {
-    size_t size;
-    gmmp_header_t *hd = buf;
-    dev_reg_req_t *body = get_body_ptr( hd );
-    smarthome_device_user_conf_t *conf = get_user_conf();
-    smarthome_state_t *state = get_smarthome_state();
-
-    size = sizeof(*hd) + sizeof(*body);
-    fill_gmmp_hd( hd, GMMP_DEV_REG_REQ, size, 0, false);
+    PREPARE_HD(GMMP_DEV_REG_REQ, dev_reg_req_t, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memcpy(body->manufacture_id, conf->dev_info.device_mf_id, sizeof(body->manufacture_id));
-    dump_gmmp(hd);
-
-    hton_gmmp_hd(hd);
-    return size;
+    POST_PROCESS();
 }
 
 size_t fill_enc_info_req( void* buf )
 {
-    size_t size;
-    gmmp_header_t *hd = buf;
-    enc_info_req_t *body = get_body_ptr( hd );
-    smarthome_device_user_conf_t *conf = get_user_conf();
-
-    size = sizeof(*hd) + sizeof(*body);
-    fill_gmmp_hd( hd, GMMP_ENC_INFO_REQ, size, 0, false);
+    PREPARE_HD(GMMP_ENC_INFO_REQ, enc_info_req_t, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, smarthome_state.gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id));
-    dump_gmmp(hd);
-
-    hton_gmmp_hd(hd);
-    return size;
+    POST_PROCESS();
 }
 
 size_t fill_set_enc_key_req( void* buf )
 {
-    size_t size;
-    gmmp_header_t *hd = buf;
-    set_enc_key_req_t *body = get_body_ptr( hd );
-    smarthome_device_user_conf_t *conf = get_user_conf();
-    smarthome_state_t *state = get_smarthome_state();
-
-    size = sizeof(*hd) + sizeof(*body);
-    fill_gmmp_hd( hd, GMMP_SET_ENC_KEY_REQ, size, 0, false);
+    PREPARE_HD(GMMP_SET_ENC_KEY_REQ, set_enc_key_req_t, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id));
-    memcpy(body->enc_key, state->aes128_key, sizeof(body->enc_key));
-    
-    dump_gmmp(hd);
-
-    hton_gmmp_hd(hd);
-    return size;
+    memset(body->enc_key, 0, sizeof(body->enc_key));
+    memcpy(body->enc_key, state->aes128_key, sizeof(state->aes128_key));
+    POST_PROCESS();
 }
 
 size_t fill_heartbeat_req( void* buf )
 {
-    size_t size;
-    gmmp_header_t *hd = buf;
-    heartbeat_req_t *body = get_body_ptr( hd );
-    smarthome_device_user_conf_t *conf = get_user_conf();
-    smarthome_state_t *state = get_smarthome_state();
-
-    size = sizeof(*hd) + sizeof(*body);
-    fill_gmmp_hd( hd, GMMP_HEARTBEAT_REQ, size, 0, false);
+    PREPARE_HD(GMMP_HEARTBEAT_REQ, heartbeat_req_t, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
-    dump_gmmp(hd);
-
-    hton_gmmp_hd(hd);
-    return size;
+    POST_PROCESS();
 }
 
 size_t fill_profile_req( void* buf )
 {
-    size_t size;
-    gmmp_header_t *hd = buf;
-    profile_req_t *body = get_body_ptr( hd );
-    smarthome_device_user_conf_t *conf = get_user_conf();
-    smarthome_state_t *state = get_smarthome_state();
-
-    
-    size = sizeof(*hd) + sizeof(*body);
-    fill_gmmp_hd( hd, GMMP_PROFILE_REQ, size, 0, false);
-
-    
+    PREPARE_HD(GMMP_PROFILE_REQ, profile_req_t, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id)); /* no device id */
-    dump_gmmp(hd);
-    
-    hton_gmmp_hd(hd);
-    return size;
+    POST_PROCESS();
 }
 
 size_t fill_ctrl_resp( void* buf, gmmp_header_t *req)
 {
     size_t size;
     gmmp_header_t *hd = buf;
-    ctrl_resp_t *body = get_body_ptr( hd );
+    ctrl_resp_t *body;
     ctrl_req_t *body_req = get_body_ptr( req );
 
     size = sizeof(*hd) + sizeof(*body);
@@ -443,57 +406,42 @@ size_t fill_ctrl_resp( void* buf, gmmp_header_t *req)
     hd->total_count = hd->current_count = 1;
     hd->encrypted = 0;
 
+    body = get_body_ptr( hd );
     *((ctrl_req_t*)body) = *body_req;
     body->result_code = 0;
 
     omp_log("Send %s Packet", get_type_name(hd->type));
     omp_log("  size: %u, tid: %lu", size, hd->tid);
-    dump_gmmp(hd);
-
-    hton_gmmp_hd(hd);
-    return size;
+    POST_PROCESS();
 }
 
-size_t fill_delivery_req( void* buf, gmmp_report_type_t report_type, int json_size )
+size_t fill_delivery_req( void* buf, gmmp_report_type_t report_type, const void* json, int json_size )
 {
-    size_t size;
-    gmmp_header_t *hd = buf;
-    delivery_req_t *body = get_body_ptr( hd );
-    smarthome_device_user_conf_t *conf = get_user_conf();
-    smarthome_state_t *state = get_smarthome_state();
-
-    size = sizeof(*hd) + sizeof(*body);
-    fill_gmmp_hd( hd, GMMP_DELIVERY_REQ, size + json_size, 0, false);
+    PREPARE_HD(GMMP_DELIVERY_REQ, delivery_req_t, true);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id));
     body->report_type = report_type;
     body->media_type = MEDIA_TYPE_APPLICATION_JSON;
-    dump_gmmp(hd);
 
-    hton_gmmp_hd(hd);
-    return size;
+    omp_log("Json: %s", (char*)json);
+    hd->len += encrypt_json(&body[1], json, json_size);
+    POST_PROCESS();
 }
 
-size_t fill_ctrl_noti( void* buf, int control_type, int json_size, uint32_t tid )
+size_t fill_ctrl_noti( void* buf, int control_type, const void* json, int json_size, uint32_t tid )
 {
-    size_t size;
-    gmmp_header_t *hd = buf;
-    ctrl_noti_t *body = get_body_ptr( hd );
-    smarthome_device_user_conf_t *conf = get_user_conf();
-    smarthome_state_t *state = get_smarthome_state();
-
-    size = sizeof(*hd) + sizeof(*body);
-    fill_gmmp_hd( hd, GMMP_CTRL_NOTI, size + json_size, tid, false);
+    PREPARE_HD(GMMP_CTRL_NOTI, ctrl_noti_t, false);
     memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
     memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
     memset(body->device_id, 0, sizeof(body->device_id));
     body->control_type = control_type;
     body->result_code = 0;
-    dump_gmmp(hd);
 
-    hton_gmmp_hd(hd);
-    return size;
+    omp_log("Json: %s", (char*)json);
+    hd->len += json_size;
+    memcpy(&body[1], json, json_size);
+    POST_PROCESS();
 }
 
 void set_tid( uint32_t tid )
