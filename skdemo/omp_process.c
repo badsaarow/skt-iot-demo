@@ -11,6 +11,7 @@
 #include "smarthome.h"
 #include "gmmp.h"
 #include "timeout.h"
+#include "AESUtils.h"
 
 extern system_context_t* sys_context;
 
@@ -26,6 +27,8 @@ smarthome_state_t smarthome_state = {
     .heartbeat_period = 600,
     .fill_json = NULL,
     .reply_control = NULL,
+
+    .use_aes128 = false,
 };
 
 static mico_semaphore_t update_state_sem = NULL;
@@ -147,6 +150,46 @@ static OSStatus send_dev_register( int sock_fd )
     size = fill_dev_reg_req( buf );
     len = write( sock_fd, buf, size );
     require_action_string( len > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_DEV_REG_REQ" );
+
+  exit:
+    if ( buf )
+	free( buf );
+    return err;
+}
+
+static OSStatus send_enc_info_req( int sock_fd )
+{
+    void *buf = NULL;
+    int len;
+    size_t size;
+    OSStatus err = kNoErr;
+
+    buf = malloc( MAX_OMP_FRAME );
+    require( buf, exit );
+
+    size = fill_enc_info_req( buf );
+    len = write( sock_fd, buf, size );
+    require_action_string( len  > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_ENC_INFO_REQ" );
+
+  exit:
+    if ( buf )
+	free( buf );
+    return err;
+}
+
+static OSStatus send_set_enc_key_req( int sock_fd )
+{
+    void *buf = NULL;
+    int len;
+    size_t size;
+    OSStatus err = kNoErr;
+
+    buf = malloc( MAX_OMP_FRAME );
+    require( buf, exit );
+
+    size = fill_set_enc_key_req( buf );
+    len = write( sock_fd, buf, size );
+    require_action_string( len  > 0 && size == len, exit, err = kWriteErr, "fail to send GMMP_ENC_INFO_REQ" );
 
   exit:
     if ( buf )
@@ -440,7 +483,7 @@ static OSStatus process_recv_message( int sock_fd )
 	    check_string(err == kNoErr, "Fail to update conf to Flash memory");
 	}
 
-	err = send_profile_req( sock_fd );
+	err = send_enc_info_req( sock_fd );
 	require_noerr( err, exit );
 	break;
     }
@@ -518,12 +561,28 @@ static OSStatus process_recv_message( int sock_fd )
 	enc_info_resp_t *body = (enc_info_resp_t*)&hd[1];
 	omp_log("Recv GMMP_ENC_INFO_RESP: result=0x%x", body->result_code);
 	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
+
+	omp_log("ENC_FLAG: %d, ENC_ALGORITHM: %d\n", body->enc_flag, body->enc_algorithm);
+	check_string(!body->enc_flag || body->enc_algorithm == ENC_AES_128, "Currently support AES128 only");
+	if (body->enc_flag && body->enc_algorithm == ENC_AES_128) {
+	    MicoRandomNumberRead(smarthome_state.aes128_key, kAES_ECB_Size);
+	    smarthome_state.use_aes128 = true;
+
+	    err = send_set_enc_key_req( sock_fd );
+	} else {
+	    /* skip encryption */
+	    err = send_profile_req( sock_fd );
+	}
+	require_noerr( err, exit );
 	break;
     }
     case GMMP_SET_ENC_KEY_RESP: {
 	set_enc_key_resp_t *body = (set_enc_key_resp_t*)&hd[1];
 	omp_log("Recv GMMP_SET_ENC_KEY_RESP: result=0x%x", body->result_code);
 	require_action_string(body->result_code == 0, exit, err = kResponseErr, "Bad result code");
+	
+	err = send_profile_req( sock_fd );
+	require_noerr( err, exit );
 	break;
     }
     case  GMMP_CTRL_REQ: {

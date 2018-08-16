@@ -49,6 +49,14 @@ typedef enum {
     REPORT_ALARM_CLEAR = 4
 } gmmp_report_type_t;
 
+typedef enum {
+    ENC_AES_128 = 1,
+    ENC_AES_192 = 2,
+    ENC_AES_256 = 3,
+    ENC_SEED_128 = 4,
+    ENC_SEED_256 = 5
+} gmmp_enc_type_t;
+
 typedef struct {
     uint8_t ver;		/* GMMP Versino */
     uint16_t len;		/* GMMP Message Length including header */
@@ -174,6 +182,8 @@ typedef dev_reg_resp_t set_enc_key_resp_t;
 OSStatus read_gmmp_frame( int fd, void *buf, size_t *size );
 size_t fill_gw_reg_req( void* buf );
 size_t fill_dev_reg_req( void* buf );
+size_t fill_enc_info_req( void* buf );
+size_t fill_set_enc_key_req( void* buf );
 size_t fill_heartbeat_req( void* buf );
 size_t fill_profile_req( void* buf );
 size_t fill_ctrl_resp( void* buf, gmmp_header_t *req);

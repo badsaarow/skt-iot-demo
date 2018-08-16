@@ -339,6 +339,45 @@ size_t fill_dev_reg_req( void* buf )
     return size;
 }
 
+size_t fill_enc_info_req( void* buf )
+{
+    size_t size;
+    gmmp_header_t *hd = buf;
+    enc_info_req_t *body = (enc_info_req_t*)&hd[1];
+    smarthome_device_user_conf_t *conf = get_user_conf();
+
+    size = sizeof(*hd) + sizeof(*body);
+    fill_gmmp_hd( hd, GMMP_ENC_INFO_REQ, size, 0);
+    memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
+    memcpy(body->gw_id, smarthome_state.gw_id, sizeof(body->gw_id));
+    memset(body->device_id, 0, sizeof(body->device_id));
+    dump_gmmp(hd);
+
+    hton_gmmp_hd(hd);
+    return size;
+}
+
+size_t fill_set_enc_key_req( void* buf )
+{
+    size_t size;
+    gmmp_header_t *hd = buf;
+    set_enc_key_req_t *body = (set_enc_key_req_t*)&hd[1];
+    smarthome_device_user_conf_t *conf = get_user_conf();
+    smarthome_state_t *state = get_smarthome_state();
+
+    size = sizeof(*hd) + sizeof(*body);
+    fill_gmmp_hd( hd, GMMP_SET_ENC_KEY_REQ, size, 0);
+    memcpy(body->domain_code, conf->server.domain_code, sizeof(body->domain_code));
+    memcpy(body->gw_id, state->gw_id, sizeof(body->gw_id));
+    memset(body->device_id, 0, sizeof(body->device_id));
+    memcpy(body->enc_key, state->aes128_key, sizeof(body->enc_key));
+    
+    dump_gmmp(hd);
+
+    hton_gmmp_hd(hd);
+    return size;
+}
+
 size_t fill_heartbeat_req( void* buf )
 {
     size_t size;
