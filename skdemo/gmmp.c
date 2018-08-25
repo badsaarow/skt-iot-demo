@@ -8,7 +8,7 @@
 
 #include "gmmp.h"
 #include "smarthome_conf.h"
- #include "smarthome.h"
+#include "smarthome.h"
 
 #define GMMP_VERSION 0x21
 
